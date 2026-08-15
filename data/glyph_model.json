@@ -1,0 +1,42 @@
+{
+ "Imbiber": {
+  "level": 127,
+  "stat": "Willpower",
+  "per5": 9.94,
+  "bucket": "additive_damage",
+  "condition": "while_healthy",
+  "legendary_mult": 15.32
+ },
+ "Wrath": {
+  "level": 131,
+  "stat": "Dexterity",
+  "per5": 16.01,
+  "bucket": "crit_damage",
+  "condition": "none",
+  "legendary_mult": 17.77
+ },
+ "Exploit": {
+  "level": 130,
+  "stat": "Dexterity",
+  "per5": 8.2,
+  "bucket": "vulnerable",
+  "condition": "vs_vulnerable",
+  "legendary_mult": 13.4
+ },
+ "Marshal": {
+  "level": 130,
+  "stat": null,
+  "per5": 347.5,
+  "bucket": "node_boost",
+  "condition": "in_radius_only",
+  "legendary_mult": 13.4
+ },
+ "Twister": {
+  "level": 150,
+  "stat": "Strength",
+  "per5": 65.5,
+  "bucket": "additive_damage",
+  "condition": "dust_devils_only",
+  "legendary_mult": 44.12
+ }
+}

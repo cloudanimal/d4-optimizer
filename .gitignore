@@ -1,0 +1,12 @@
+# large local artifacts, regenerable
+venv/
+caps/
+frames/
+scenes*/
+*.mov
+*.mp4
+*.png
+*.jpg
+raw/
+__pycache__/
+*.pyc

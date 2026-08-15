@@ -1,0 +1,120 @@
+{
+ "Barbarian_Legendary_002": {
+  "board": "Hemorrhage",
+  "name": "Hemorrhage",
+  "mult": [
+   75.0
+  ],
+  "add": [],
+  "conditions": [
+   "vs Vulnerable",
+   "vs DoT-affected"
+  ],
+  "desc": "Applying a Damage Over Time effect to a Vulnerable enemy deals 75%\\[x\\] increased damage."
+ },
+ "Barbarian_Legendary_004": {
+  "board": "Blood Rage",
+  "name": "Blood Rage",
+  "mult": [
+   60.0
+  ],
+  "add": [],
+  "conditions": [
+   "while Berserking",
+   "vs DoT-affected"
+  ],
+  "desc": "Killing an enemy affected by a Damage Over Time effect has 10% chance to grant Berserking for 5 seconds. Your damage is increased by 60%\\[x\\] while Berserking."
+ },
+ "Barbarian_Legendary_009": {
+  "board": "Carnage",
+  "name": "Carnage",
+  "mult": [
+   45.0
+  ],
+  "add": [
+   15.0
+  ],
+  "conditions": [
+   "while Berserking"
+  ],
+  "desc": "Berserking now additionally grants 15%\\[+\\] Attack Speed. You deal 45%\\[x\\] increased Fire and Physical damage."
+ },
+ "Barbarian_Legendary_014": {
+  "board": "Decimator",
+  "name": "Decimator",
+  "mult": [
+   25.0,
+   25.0
+  ],
+  "add": [],
+  "conditions": [
+   "vs Vulnerable",
+   "on Overpower"
+  ],
+  "desc": "You deal 25%\\[x\\] increased damage to Vulnerable enemies. You deal 25%\\[x\\] increased damage while you have Overpower charges."
+ },
+ "Barbarian_Legendary_015": {
+  "board": "Bone Breaker",
+  "name": "Bone Breaker",
+  "mult": [
+   10.0,
+   80.0
+  ],
+  "add": [],
+  "conditions": [
+   "on Overpower"
+  ],
+  "desc": "Every 12 seconds, gain a charge of Overpower. Whenever you attack while having an Overpower charge, your Ultimate Skills deal 10%\\[x\\] increased damage for 10 seconds, up to 80%\\[x\\]."
+ },
+ "Barbarian_Legendary_016": {
+  "board": "Flawless Technique",
+  "name": "Flawless Technique",
+  "mult": [
+   50.0
+  ],
+  "add": [
+   5.0
+  ],
+  "conditions": [
+   "on weapon repeat"
+  ],
+  "desc": "Consecutive attacking with the same weapon increases your Critical Strike chance by 5%\\[+\\] and Critical Strike Damage by 50%\\[x\\] for 4 seconds."
+ },
+ "Barbarian_Legendary_011": {
+  "board": "Warbringer",
+  "name": "Warbringer",
+  "mult": [
+   45.0
+  ],
+  "add": [],
+  "conditions": [
+   "while Fortified"
+  ],
+  "desc": "For every 300 Fury you spend, gain 2% of your Maximum Life ([0.02*PlayerHealthMax()||]) as Fortify. Deal 45%\\[x\\] increased damage while Fortified."
+ },
+ "Barbarian_Legendary_017": {
+  "board": "Weapons Master",
+  "name": "Weapons Master",
+  "mult": [
+   75.0
+  ],
+  "add": [],
+  "conditions": [
+   "on weapon swap"
+  ],
+  "desc": "Swapping weapons grants you 4 Fury. You deal 75%\\[x\\] increased damage to Injured and Healthy enemies."
+ },
+ "Barbarian_Legendary_001": {
+  "board": "Force of Nature",
+  "name": "Force of Nature",
+  "mult": [
+   45.0
+  ],
+  "add": [],
+  "conditions": [
+   "Dust Devils only",
+   "Earthquakes only"
+  ],
+  "desc": "Skills that cast Earthquakes and Dust Devils deal 45%\\[x\\] increased damage."
+ }
+}
