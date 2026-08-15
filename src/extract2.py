@@ -11,13 +11,16 @@ import numpy as np
 from PIL import Image
 
 HERE = os.path.dirname(os.path.abspath(__file__))
-DATA = json.load(open(os.path.join(HERE, 'd4/d4corpus/barbarian.json')))
+DATA = json.load(open(os.path.join(HERE, '..', 'data', 'barbarian.json')))
 W = 21
 # play area as fractions of the frame, so it survives window resizes
 PLAY_F = (0.10, 0.955, 0.240, 0.995)   # y0, y1, x0, x1
 
+ONLY = os.environ.get('BOARD')      # optionally restrict to one known board
 KNOWN = []
 for b in DATA['boards']:
+    if ONLY and b['name'] != ONLY:
+        continue
     m = np.zeros((W, W), dtype=bool)
     for g in b['grid']:
         m[g['row'], g['col']] = True
@@ -52,8 +55,12 @@ def fit_pitch(profile, lo=50, hi=70):
 def read(path, verbose=True):
     a = np.asarray(Image.open(path).convert('RGB')).astype(float)
     Hf, Wf = a.shape[:2]
-    y0, y1 = int(PLAY_F[0] * Hf), int(PLAY_F[1] * Hf)
-    x0, x1 = int(PLAY_F[2] * Wf), int(PLAY_F[3] * Wf)
+    if 0.80 <= Wf / Hf <= 1.35:
+        # a board-only crop: the whole image is the 21x21 grid
+        y0, y1, x0, x1 = 0, Hf, 0, Wf
+    else:
+        y0, y1 = int(PLAY_F[0] * Hf), int(PLAY_F[1] * Hf)
+        x0, x1 = int(PLAY_F[2] * Wf), int(PLAY_F[3] * Wf)
     lum = a.mean(axis=2)
     R, G, B = a[:, :, 0], a[:, :, 1], a[:, :, 2]
     ring = ((R > 95) & (R - G > 45) & (R - B > 45)).astype(float)
@@ -62,14 +69,14 @@ def read(path, verbose=True):
     reg = lum[y0:y1, x0:x1]
     thr = float(np.percentile(reg, 60) + 0.45 * (np.percentile(reg, 99) - np.percentile(reg, 60)))
     sub = reg > thr
-    seed = fit_pitch(sub.sum(axis=0).astype(float), 40, 85) or 58.0
+    seed = fit_pitch(sub.sum(axis=0).astype(float), 40, 150) or 58.0
     ii_l, ii_r = integral(lum), integral(ring)
 
     # stack the 40 known masks once so each window scores in a single vector op
     KM = np.stack([km for _, _, km in KNOWN])
 
     # occupancy threshold is searched too: the board match decides which is right
-    THRS = [float(np.percentile(reg, q)) for q in (55, 65, 75, 85)] + [45.0]
+    THRS = [float(np.percentile(reg, q)) for q in (25, 35, 45, 55, 65, 75, 85)] + [38.0, 45.0]
 
     def search(pitches, fys_of, fxs_of, best):
         for t in THRS:
@@ -85,7 +92,7 @@ def read(path, verbose=True):
                         for r in range(len(ys_all) - W + 1):
                             for c in range(len(xs_all) - W + 1):
                                 occ = L[r:r + W, c:c + W]
-                                if occ.sum() < 55:
+                                if occ.sum() < 40:
                                     continue
                                 ags = (KM == occ).mean(axis=(1, 2))
                                 i = int(ags.argmax())
@@ -95,9 +102,16 @@ def read(path, verbose=True):
                                             ys_all[r:r + W].copy(), xs_all[c:c + W].copy())
         return best
 
-    # the board match itself selects pitch, phase and threshold
-    seedlo = max(38, seed - 18)
-    best = search(np.arange(seedlo, seed + 18.01, 1.5),
+    # the board match itself selects pitch, phase and threshold.
+    # Seed from the FFT estimate and from the image dimensions, since a board
+    # that fills its crop has pitch ~ width/21.
+    cands = set()
+    for base in (seed, (x1 - x0) / W, (y1 - y0) / W):
+        for d in np.arange(-12, 12.01, 1.5):
+            v = base + d
+            if 38 <= v <= 160:
+                cands.add(round(float(v), 2))
+    best = search(sorted(cands),
                   lambda p: np.arange(0, p, 4.0), lambda p: np.arange(0, p, 4.0), None)
     if best:
         p0, fy0, fx0 = best[5], best[3], best[4]
