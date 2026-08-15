@@ -28,7 +28,10 @@ BASELINE = {
     'crit_damage': 5110.2,
     'vulnerable': 421.1,
     'attack_speed': 20.0,
-    'separate_multiplier': 0.0,
+    # Separate multipliers read off the character's gear. These sit in their
+    # own bucket rather than adding to anything, and the stats panel does not
+    # show them, which is why they have to come from the item tooltips.
+    'separate_multiplier': 20.0 + 13.0 + 32.0 + 21.0,   # Physical, All, Physical, Vulnerable
 }
 
 # How often each condition is actually live for a Whirlwind build. These are
