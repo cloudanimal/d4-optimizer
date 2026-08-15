@@ -13,7 +13,7 @@ Blizzard's own attribute naming (Multiplicative_* versus plain), not guessed.
 import json, os
 
 HERE = os.path.dirname(os.path.abspath(__file__))
-D = os.path.join(HERE, 'd4', 'd4corpus')
+D = os.path.join(HERE, '..', 'data')
 BUCKETS = json.load(open(os.path.join(D, 'bucket_table.json')))
 GLYPHS = json.load(open(os.path.join(D, 'glyph_model.json')))
 LEGEND = json.load(open(os.path.join(D, 'legendary_nodes.json')))
