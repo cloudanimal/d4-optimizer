@@ -1,0 +1,146 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>D4 Optimizer — Diablo IV paragon board optimization</title>
+<meta name="description" content="A solver for Diablo IV paragon boards: which boards, what rotation, which glyph, which nodes. Built on a verified data corpus for all eight classes.">
+<style>
+  :root{
+    --bg:#0c0a08; --panel:#15110d; --panel2:#1c1712; --edge:#3a2f22;
+    --gold:#c8a35a; --dim:#9a8f7d; --text:#e8dfce;
+    --mult:#e0654a; --add:#7fb2e5; --ok:#7fbf7f;
+  }
+  *{box-sizing:border-box}
+  body{margin:0;background:radial-gradient(1200px 700px at 50% -15%,#241b12 0%,transparent 60%),var(--bg);
+    color:var(--text);font:16px/1.65 "Iowan Old Style","Palatino Linotype",Georgia,serif;padding:0 18px 80px}
+  .wrap{max-width:900px;margin:0 auto}
+  header{text-align:center;padding:64px 0 30px;border-bottom:1px solid var(--edge);margin-bottom:34px}
+  h1{margin:0;font-size:46px;letter-spacing:.12em;text-transform:uppercase;color:var(--gold);
+     text-shadow:0 0 28px rgba(200,163,90,.22)}
+  .tag{color:var(--dim);letter-spacing:.14em;text-transform:uppercase;font-size:12.5px;margin-top:12px}
+  h2{font-size:13px;letter-spacing:.2em;text-transform:uppercase;color:var(--gold);
+     margin:44px 0 16px;padding-bottom:8px;border-bottom:1px solid var(--edge)}
+  p{color:#ddd3c2}
+  code{background:#000;padding:2px 6px;border-radius:3px;font-size:14px;color:var(--gold)}
+  pre{background:#000;border:1px solid var(--edge);border-radius:4px;padding:16px;overflow-x:auto;font-size:13.5px}
+  table{width:100%;border-collapse:collapse;font-size:14.5px;margin:14px 0}
+  th,td{text-align:left;padding:9px 12px;border-bottom:1px solid var(--edge);vertical-align:top}
+  th{font-size:11px;letter-spacing:.14em;text-transform:uppercase;color:var(--dim);font-weight:400}
+  td.n{text-align:right;font-variant-numeric:tabular-nums;color:var(--gold)}
+  .cards{display:grid;grid-template-columns:repeat(auto-fit,minmax(200px,1fr));gap:14px;margin:18px 0}
+  .card{background:linear-gradient(180deg,var(--panel2),var(--panel));border:1px solid var(--edge);
+        border-left:3px solid var(--gold);border-radius:4px;padding:16px}
+  .card .k{font-size:11px;letter-spacing:.14em;text-transform:uppercase;color:var(--dim)}
+  .card .v{font-size:30px;color:var(--gold);margin-top:5px;font-variant-numeric:tabular-nums}
+  .card .s{font-size:12.5px;color:var(--dim);margin-top:4px}
+  a{color:var(--gold)}
+  .x{color:var(--mult);font-weight:700}.p{color:var(--add);font-weight:700}
+  .note{background:#100d0a;border:1px dashed var(--edge);border-radius:4px;padding:16px;color:var(--dim);font-size:14px}
+  footer{margin-top:56px;padding-top:22px;border-top:1px solid var(--edge);color:var(--dim);font-size:13px;text-align:center}
+  @media (prefers-color-scheme: light){
+    :root{--bg:#f7f3ec;--panel:#fff;--panel2:#faf7f1;--edge:#d9cdb8;--gold:#8a6a24;--dim:#6d6355;--text:#241f18}
+    body{background:var(--bg)} p{color:#3a332a} code,pre{background:#f0eadf;color:#5c4a1f}
+  }
+</style>
+</head>
+<body>
+<div class="wrap">
+
+<header>
+  <h1>D4 Optimizer</h1>
+  <div class="tag">Paragon board optimization for Diablo IV</div>
+</header>
+
+<p>Maxroll, D4Builds and Mobalytics all let you click paragon nodes by hand. None of
+them tell you which nodes to click. This project closes that gap: given a class, a
+point budget and a set of glyphs, it searches board selection, board rotation, entry
+gate, glyph assignment and node purchases together.</p>
+
+<h2>Why it is a real search problem</h2>
+
+<p>A glyph counts a specific stat, but only from nodes you purchased inside a
+<strong>Manhattan-distance-5 diamond</strong> around its socket. Every 5 of that stat in
+range pays out the glyph's coefficient. So a mediocre node inside the diamond can beat a
+stronger node outside it, and where you place the socket depends on which nodes you
+intend to buy. That mutual dependence is what stops this being a shopping list.</p>
+
+<p>Damage compounds it. Bonuses do not simply add: they fall into buckets that add
+internally and then multiply against each other. Adding crit damage to an already
+enormous crit pool is worth far less than the same number landing in an empty bucket.</p>
+
+<div class="cards">
+  <div class="card"><div class="k">Boards</div><div class="v">79</div><div class="s">all 8 classes</div></div>
+  <div class="card"><div class="k">Nodes</div><div class="v">561</div><div class="s">values fully resolved</div></div>
+  <div class="card"><div class="k">Glyphs</div><div class="v">160</div><div class="s">with level scaling</div></div>
+  <div class="card"><div class="k">Items</div><div class="v">11,795</div><div class="s">+1,273 aspects</div></div>
+</div>
+
+<h2>Everything is verified, not assumed</h2>
+
+<table>
+  <tr><th>Fact</th><th>How it was established</th></tr>
+  <tr><td>Board geometry</td><td>Blizzard dump vs Maxroll tables, identical cell for cell on 10 of 10 boards</td></tr>
+  <tr><td>Node values</td><td>149 of 149 formulas agree across both sources</td></tr>
+  <tr><td>The six budget scalars</td><td>Each derived from 42 to 58 independent formulas, all yielding one value</td></tr>
+  <tr><td>Glyph radius</td><td>Pixel measurement of the in-game highlight, plus a diamond covering a constant 53 cells where a square gives a noisy 74 to 85</td></tr>
+  <tr><td>Glyph level formula</td><td>Reproduces all 8 observed in-game values exactly</td></tr>
+  <tr><td>Damage buckets</td><td>Derived from Blizzard's own attribute naming, not community lore</td></tr>
+  <tr><td>Board reading</td><td>Occupancy matched a known 441-cell layout at 100.0%</td></tr>
+</table>
+
+<h2>The six scalars</h2>
+
+<p>Many node values are stored as <code>coefficient &times;
+ParagonPowerBudgetMultiplierNode{rarity}{type}()</code>. That function is compiled into
+the client rather than shipped as data, so it appears 310 times as a reference and never
+once as a definition. Recovered by cross-referencing a planner's resolved formula table:</p>
+
+<table>
+  <tr><th></th><th>Offensive</th><th>Defensive</th></tr>
+  <tr><td>Magic</td><td class="n">0.025</td><td class="n">0.02</td></tr>
+  <tr><td>Rare Minor</td><td class="n">0.05</td><td class="n">0.04</td></tr>
+  <tr><td>Rare Major</td><td class="n">0.05</td><td class="n">0.04</td></tr>
+</table>
+
+<h2>Damage buckets, straight from the data</h2>
+
+<p>The classification that is usually treated as community knowledge turns out to be
+encoded in Blizzard's own attribute names. Matched pairs exist:</p>
+
+<pre>Damage_Type_Percent_Bonus                 &rarr;  additive
+Multiplicative_Damage_Type_Percent_Bonus  &rarr;  its own multiplier
+Bucketed_Multiplicative_Damage_Type       &rarr;  explicitly bucketed</pre>
+
+<p>Applied across the 373 attributes used by nodes and affixes: 84 additive, 19 separate
+multipliers, 8 crit, 7 attack speed, 1 vulnerable. Tooltips corroborate it, marking
+bonuses <span class="x">[x]</span> for separate multipliers and
+<span class="p">[+]</span> for additive.</p>
+
+<h2>Reading a board from a screenshot</h2>
+
+<p>The extractor fits the node lattice, then slides a 21&times;21 window across it, scoring
+every position against all 10 board layouts in 4 rotations. It only accepts a
+near-perfect match, because a wrong alignment cannot reproduce a known 441-cell layout by
+accident. A frame that does not clear the bar is reported as a failed read rather than
+guessed at.</p>
+
+<div class="note">
+  <strong>On honesty in the model.</strong> Uptime assumptions for conditional bonuses,
+  such as how often a build is Berserking or Fortified, are genuine judgement calls. They
+  live in a visible <code>UPTIME</code> table rather than being buried in the objective,
+  so they can be argued with and tuned. Open questions are listed in the repository
+  README rather than quietly smoothed over.
+</div>
+
+<h2>Source</h2>
+<p><a href="https://github.com/cloudanimal/d4-optimizer">github.com/cloudanimal/d4-optimizer</a></p>
+
+<footer>
+  Game data remains the property of Blizzard Entertainment. This project contains derived
+  tables for analysis, plus original code.
+</footer>
+
+</div>
+</body>
+</html>

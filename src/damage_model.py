@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """Bucket-based damage model for Diablo IV.
 
-Key idea that avoids needing complete gear data: Litel's stats panel already
+Key idea that avoids needing complete gear data: a character's stats panel already
 contains every gear, masterwork and tempering contribution rolled up. So we
 seed the buckets from the panel and evaluate paragon choices as DELTAS on top.
 Candidates are then ranked against a common baseline, which is what an
@@ -20,7 +20,8 @@ LEGEND = json.load(open(os.path.join(D, 'legendary_nodes.json')))
 
 ATTR_BUCKET = {a: b for b, lst in BUCKETS.items() for a in lst}
 
-# Litel's town panel: gear + current paragon, all unconditional sources.
+# Example baseline: a character's town stats panel (gear + current paragon,
+# unconditional sources only). Replace with your own from the character sheet.
 BASELINE = {
     'additive_damage': 0.0,      # panel does not expose a single additive total
     'crit_chance': 53.8,
