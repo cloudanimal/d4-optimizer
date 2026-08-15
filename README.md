@@ -1,4 +1,4 @@
-# Diablo IV Paragon Optimizer
+# D4 Optimizer
 
 Tooling to optimize Diablo IV paragon boards: which boards to run, at what
 rotation, which glyph in each socket, and which nodes to buy.
