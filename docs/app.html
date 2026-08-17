@@ -151,6 +151,7 @@
         <li>Board attachment chain modelled<small>Crossing a board to attach the next costs 19-27 points in forced pathing</small></li>
         <li><b>Build generator working</b><small>Searches board choice, rotation, entry and exit gates, glyph assignment and node allocation together, and returns a complete legal build</small></li>
         <li>This browser app<small>All 79 boards, resolved values on hover, glyph radius overlay</small></li>
+        <li>Board renderer redesigned<small>Forged-plate treatment with the board&rsquo;s topology visible before any clicks. Rarity carried by shape and size, not hue alone, so it survives colour blindness and greyscale. HiDPI backing store, level-of-detail below 22px per cell, and a self-drawing legend that cannot drift from the renderer</small></li>
       </ul>
     </div>
 
@@ -263,7 +264,6 @@
 const W = 21;
 const STAT = {Strength_Core:'str', Dexterity_Core:'dex',
               Intelligence_Core:'int', Willpower_Core:'wil'};
-const COL = {normal:'#4a453d', magic:'#3f6ea8', rare:'#c9a83f', legendary:'#d2802f'};
 let DATA=null, board=0, rot=0, owned=new Set(), showDia=true, hover=null, cache=null;
 
 const $ = id => document.getElementById(id);
@@ -298,59 +298,615 @@ function build(){
   draw(); totals();
 }
 
-function draw(){
-  if(!cache) return;
-  const cv=$('cv'), x=cv.getContext('2d'), S=cv.width, P=S/W;
-  const {m,sock,dia}=cache;
-  x.clearRect(0,0,S,S);
-  // diamond wash
-  if(showDia){ x.fillStyle='rgba(214,74,58,.07)';
-    for(const i of dia) x.fillRect(((i%W))*P,(((i/W)|0))*P,P,P); }
-  // connectors between allocated neighbours
-  x.strokeStyle='#d1452f'; x.lineWidth=Math.max(2,P*.10); x.lineCap='round';
-  for(const i of owned){ const r=(i/W)|0,c=i%W;
-    for(const [dr,dc] of [[0,1],[1,0]]){ const j=(r+dr)*W+(c+dc);
-      if(owned.has(j)&&m.has(j)){ x.beginPath();
-        x.moveTo(c*P+P/2,r*P+P/2); x.lineTo((c+dc)*P+P/2,(r+dr)*P+P/2); x.stroke(); } } }
-  // nodes
-  for(const [i,key] of m){
-    const r=(i/W)|0, c=i%W, cx=c*P+P/2, cy=r*P+P/2;
-    const n=DATA.nodes[key];
-    const gate=key.includes('Gate'), socket=key.includes('Socket');
-    const rad=P*(socket?.40:gate?.34:.33);
-    // tile
-    x.fillStyle='rgba(255,255,255,.028)';
-    x.fillRect(c*P+P*.06,r*P+P*.06,P*.88,P*.88);
-    if(gate){
-      x.save(); x.translate(cx,cy); x.rotate(Math.PI/4);
-      x.fillStyle='#9a3b32'; x.fillRect(-rad*.8,-rad*.8,rad*1.6,rad*1.6);
+/* ============================================================================
+   D4 PARAGON BOARD RENDERER  —  "forged plate + schematic lattice"
+   ----------------------------------------------------------------------------
+   INTEGRATION (this REPLACES code, it does not sit beside it):
+     1. DELETE line 266:  const COL = {normal:'#4a453d', ...}
+     2. DELETE the whole existing  function draw(){ ... }  (lines 301-353)
+     3. PASTE this block in its place.
+   Function declarations hoist and the last one wins, so appending this instead
+   of replacing would silently keep the old dot renderer running.
+   The seven hand-authored <i class="sw"> swatches in the .legend block are
+   replaced at runtime by buildLegend(); no markup edit is needed, and the .sw
+   CSS rule simply goes unused.
+
+   Uses only: W, DATA.nodes, cache{m,sock,dia}, owned, hover, showDia and the
+   <canvas id="cv">. Pure canvas 2D, no libraries, no external assets.
+   cellAt() needs no change: it already works off getBoundingClientRect ratios,
+   so it is resolution independent.
+
+   THREE INDEPENDENT CHANNELS, none of which is a red-vs-green decision:
+     RARITY    = shape + size + rim hue + rim brightness.  circle < square <
+                 hexagon < 8-point star, with 21% / 18% / 18% size steps.
+     ALLOCATED = figure-ground flip (hollow -> solid bright fill) + ivory
+                 keyline + a NOTCHED ember band + ivory conduits.  The load
+                 bearing part is achromatic, so it survives protanopia,
+                 deuteranopia, tritanopia and flat greyscale.
+     IN RADIUS = cyan, and cyan means nothing else anywhere: lifted plate,
+                 etch hatch, hard staircase border, per-cell corner ticks, and
+                 a cyan companion outline inside every node in range.
+   ========================================================================== */
+
+const TAU = Math.PI * 2;
+
+/* ---------------------------------------------------------------- palette */
+const PAL = {
+  voidIn:'#0d0a07', voidOut:'#020202',
+
+  plateTop:'#272017', plateBot:'#141110',
+  seam:'rgba(0,0,0,.42)', seamLit:'rgba(255,226,182,.05)',
+  rimLit:'rgba(255,214,160,.28)', rimShadow:'rgba(0,0,0,.85)',
+
+  lattice:'rgba(214,190,148,.17)',      /* every board adjacency, dormant     */
+  latticeHot:'rgba(255,238,200,.60)',   /* adjacencies of the hovered cell    */
+
+  hollow:'#070605',                     /* interior of an UNallocated node    */
+  hollowRng:'#04100f',                  /* ... when it sits in glyph range    */
+
+  arcane:'#5fe0d0',                     /* GLYPH SYSTEM, used for nothing else*/
+  arcaneFill:'rgba(95,224,208,.15)',
+  arcaneHatch:'rgba(95,224,208,.09)',
+  arcaneEdge:'#9ff2e6',
+  arcaneEdgeDark:'rgba(3,26,25,.85)',
+  arcaneTick:'rgba(120,232,218,.55)',
+  socketIris:'#b9fbf2',
+
+  ink:'#fdf6e6',                        /* ALLOCATION, achromatic             */
+  ember:'#ff9a3f',                      /* warmth, carried only by the band   */
+  emberDim:'rgba(255,154,63,.55)',
+  bed:'rgba(0,0,0,.62)',
+
+  hover:'#ffe6b0',
+  shade:'rgba(0,0,0,.55)'
+};
+
+/* rarity / kind ladder.  r = body radius as a fraction of the cell pitch.
+   off = rim colour when unallocated, on = fill colour when allocated.        */
+const SPEC = {
+  normal   :{form:'circle',  r:.210, off:'#7e7568', on:'#e4d8bd', mark:'none' },
+  magic    :{form:'square',  r:.255, off:'#6f9ae8', on:'#8fc0ff', mark:'bar'  },
+  rare     :{form:'hex',     r:.300, off:'#e5c24f', on:'#ffdc6e', mark:'cross'},
+  legendary:{form:'star',    r:.355, off:'#ff9b47', on:'#ffb264', mark:'star' },
+  gate     :{form:'diamond', r:.320, off:'#e2705a', on:'#ff9f86', mark:'slot' },
+  socket   :{form:'octa',    r:.335, off:'#cfd8e0', on:'#ffffff', mark:'iris' }
+};
+
+/* ------------------------------------------------- colour helpers (cold) */
+function _rgb(c){
+  c = c.charAt(0) === '#' ? c.slice(1) : c;
+  if(c.length === 3) c = c[0]+c[0]+c[1]+c[1]+c[2]+c[2];
+  const v = parseInt(c,16);
+  return [(v>>16)&255,(v>>8)&255,v&255];
+}
+function mix(a,b,t){
+  const A=_rgb(a), B=_rgb(b);
+  return 'rgb('+Math.round(A[0]+(B[0]-A[0])*t)+','+
+                Math.round(A[1]+(B[1]-A[1])*t)+','+
+                Math.round(A[2]+(B[2]-A[2])*t)+')';
+}
+function rgba(c,a){ const A=_rgb(c); return 'rgba('+A[0]+','+A[1]+','+A[2]+','+a+')'; }
+
+/* ---------------------------------------------------- render state (hot) */
+let DPR = 1;       /* device px per CSS px, capped at 2                      */
+let LOD = 'full';  /* 'small' | 'mid' | 'full', keyed on CSS px per cell     */
+
+/* --------------------------------------------------------------- shapes */
+function shapePath(x,cx,cy,r,form){
+  x.beginPath();
+  if(form === 'circle'){ x.arc(cx,cy,r,0,TAU); return; }
+  if(form === 'square'){ const h=r*.80; x.rect(cx-h,cy-h,h*2,h*2); return; }
+  if(form === 'diamond'){
+    x.moveTo(cx,cy-r); x.lineTo(cx+r,cy); x.lineTo(cx,cy+r); x.lineTo(cx-r,cy);
+    x.closePath(); return;
+  }
+  if(form === 'star'){
+    for(let k=0;k<16;k++){
+      const a = -Math.PI/2 + k*Math.PI/8, rr = (k&1) ? r*.76 : r;
+      const px=cx+Math.cos(a)*rr, py=cy+Math.sin(a)*rr;
+      k ? x.lineTo(px,py) : x.moveTo(px,py);
+    }
+    x.closePath(); return;
+  }
+  const n   = form === 'hex' ? 6 : 8;
+  const rot = form === 'hex' ? -Math.PI/2 : Math.PI/8;
+  for(let k=0;k<n;k++){
+    const a = rot + k*TAU/n, px=cx+Math.cos(a)*r, py=cy+Math.sin(a)*r;
+    k ? x.lineTo(px,py) : x.moveTo(px,py);
+  }
+  x.closePath();
+}
+
+/* outline of a set of cell indices, as cell-edge segments */
+function boundaryPath(set,P){
+  const p = new Path2D();
+  for(const i of set.keys()){
+    const r=(i/W)|0, c=i%W, X=c*P, Y=r*P;
+    if(!set.has(i-W))            { p.moveTo(X,Y);   p.lineTo(X+P,Y);   }
+    if(!set.has(i+W))            { p.moveTo(X,Y+P); p.lineTo(X+P,Y+P); }
+    if(c===0   || !set.has(i-1)) { p.moveTo(X,Y);   p.lineTo(X,Y+P);   }
+    if(c===W-1 || !set.has(i+1)) { p.moveTo(X+P,Y); p.lineTo(X+P,Y+P); }
+  }
+  return p;
+}
+
+/* ------------------------------------------------------- kind and rarity */
+const _warned = new Set();
+function kindOf(key){
+  return key.indexOf('Gate')   >= 0 ? 'gate'
+       : key.indexOf('Socket') >= 0 ? 'socket' : 'node';
+}
+/* a data casing change must fail loudly, not silently flatten the board */
+function rarityOf(key){
+  if(kindOf(key) !== 'node') return '-';
+  const n = DATA.nodes[key];
+  const r = String((n && n.rarity) || '').toLowerCase();
+  if(r === 'normal' || r === 'magic' || r === 'rare' || r === 'legendary') return r;
+  if(!_warned.has(r)){ _warned.add(r); console.warn('[board] unknown rarity:', r, key); }
+  return 'normal';
+}
+function specOf(kind,rar){ return SPEC[kind === 'node' ? rar : kind]; }
+
+/* ------------------------------------------- band and conduit dimensions */
+function bandWidth(P){ return Math.max(2*DPR, P*.070); }
+/* clamped so the band can NEVER leave its own cell: two adjacent allocated
+   nodes therefore cannot carve each other, whatever order they were clicked */
+function bandRadius(R,P){ return Math.min(R*1.36, P*.440 - bandWidth(P)*.5); }
+function outerR(kind,rar,P){ return P*specOf(kind,rar).r; }
+
+/* ------------------------------------------------------------ film grain
+   One 128px noise tile, built once.  It is stamped into the static layer
+   (under the nodes) and, with 'source-atop', into every node sprite, so the
+   plate and every node carry exactly one dose of the same grain.  Nothing is
+   grained per frame: a full-canvas overlay blit measured 2.5ms and was the
+   single biggest cost in the hover path.                                    */
+let _noiseT = null;
+function noiseTile(){
+  if(_noiseT) return _noiseT;
+  const T = 128, t = document.createElement('canvas');
+  t.width = t.height = T;
+  const tg = t.getContext('2d'), im = tg.createImageData(T,T), d = im.data;
+  for(let i=0;i<d.length;i+=4){
+    const v = Math.random()*255|0;
+    d[i]=v; d[i+1]=(v*.94)|0; d[i+2]=(v*.84)|0; d[i+3]=17;   /* ~3.3% effective */
+  }
+  tg.putImageData(im,0,0);
+  _noiseT = t; return t;
+}
+function grainOver(x,w,h,atop){
+  x.save();
+  if(atop) x.globalCompositeOperation = 'source-atop';
+  x.globalAlpha = .5;
+  x.fillStyle = x.createPattern(noiseTile(),'repeat');
+  x.fillRect(0,0,w,h);
+  x.restore();
+}
+
+/* ----------------------------------------------------------- node sprites
+   Keyed on kind|rarity|allocated|in-range, invalidated when the pitch moves.
+   At most 24 sprites exist at once.  Gates and sockets drop the rarity term
+   so they cannot produce duplicate cache entries.                          */
+const _spr = new Map();
+let _sprP = -1;
+
+function sprite(kind,rar,lit,rng,P){
+  if(P !== _sprP){ _spr.clear(); _sprP = P; }
+  const k = kind + '|' + (kind === 'node' ? rar : '-') + '|' + (lit?1:0) + (rng?1:0);
+  let s = _spr.get(k);
+  if(!s){
+    const H = Math.ceil(P*.50) + 2;    /* nothing is ever painted outside the cell */
+    s = document.createElement('canvas');
+    s.width = s.height = H*2;
+    const g = s.getContext('2d');
+    paintNode(g, H, H, P, kind, rar, lit, rng);
+    if(LOD !== 'small') grainOver(g, H*2, H*2, true);  /* only the node's own pixels */
+    s._h = H;
+    _spr.set(k,s);
+  }
+  return s;
+}
+
+function paintNode(x,cx,cy,P,kind,rar,lit,rng){
+  const S     = specOf(kind,rar);
+  const R     = P*S.r;
+  const px    = DPR;
+  const small = LOD === 'small';
+  const full  = LOD === 'full';
+
+  x.lineJoin = 'round'; x.lineCap = 'round';
+
+  /* 1. cast shadow: one offset silhouette scaled to the mark, so EVERY kind
+        gets figure-ground separation, not just the plain disc */
+  shapePath(x, cx, cy + Math.max(1*px, P*.026), R*1.06, S.form);
+  x.fillStyle = PAL.shade; x.fill();
+
+  /* 2. body.  hollow when unallocated, solid when allocated.  This area flip
+        is the allocation signal: it is a large filled region, not a hairline,
+        so it survives any downscale and any colour-vision deficiency */
+  if(lit){
+    const g = x.createLinearGradient(cx-R, cy-R, cx+R, cy+R);
+    g.addColorStop(0,   mix(S.on,'#ffffff',.34));
+    g.addColorStop(.55, S.on);
+    g.addColorStop(1,   mix(S.on,'#0a0705',.40));
+    shapePath(x,cx,cy,R,S.form); x.fillStyle = g; x.fill();
+    x.strokeStyle = PAL.ink; x.lineWidth = Math.max(1.2*px, P*.042); x.stroke();
+  } else {
+    shapePath(x,cx,cy,R,S.form);
+    x.fillStyle = rng ? PAL.hollowRng : PAL.hollow; x.fill();
+    x.strokeStyle = S.off; x.lineWidth = Math.max(1.5*px, P*.072); x.stroke();
+    if(full){                                     /* upper-left rim light */
+      x.save(); shapePath(x,cx,cy,R,S.form); x.clip();
+      x.beginPath(); x.arc(cx,cy,R,Math.PI*1.12,Math.PI*1.88);
+      x.strokeStyle = 'rgba(255,246,228,.30)';
+      x.lineWidth = Math.max(1*px, P*.030); x.stroke();
       x.restore();
-    } else if(socket){
-      x.beginPath(); x.arc(cx,cy,rad,0,7);
-      const g=x.createRadialGradient(cx,cy,1,cx,cy,rad*1.7);
-      g.addColorStop(0,'#f5c268'); g.addColorStop(1,'rgba(224,144,47,0)');
-      x.fillStyle=g; x.fill();
-      x.beginPath(); x.arc(cx,cy,rad*.62,0,7); x.fillStyle='#e0902f'; x.fill();
-    } else {
-      x.beginPath(); x.arc(cx,cy,rad,0,7);
-      x.fillStyle=COL[n.rarity]||'#4a453d'; x.globalAlpha=owned.has(i)?1:.55; x.fill();
-      x.globalAlpha=1;
-      if(n.rarity==='legendary'||n.rarity==='rare'){
-        x.beginPath(); x.arc(cx,cy,rad*1.02,0,7);
-        x.strokeStyle=n.rarity==='legendary'?'#f2a24a':'#e8cf72';
-        x.lineWidth=Math.max(1,P*.05); x.stroke();
-      }
-    }
-    if(owned.has(i)){
-      x.beginPath(); x.arc(cx,cy,rad*1.22,0,7);
-      x.strokeStyle='#e04a3a'; x.lineWidth=Math.max(2,P*.09); x.stroke();
-    }
-    if(hover===i){
-      x.beginPath(); x.arc(cx,cy,rad*1.45,0,7);
-      x.strokeStyle='rgba(255,235,190,.85)'; x.lineWidth=Math.max(1.5,P*.06); x.stroke();
     }
   }
+
+  /* 3. in-radius: a cyan companion outline INSIDE the body rim.  It cannot
+        collide with the allocation band, it is visible on hollow and on solid
+        bodies alike, and it works even when the node covers its whole cell */
+  if(rng){
+    const inset = Math.max(1.8*px, P*.058);
+    shapePath(x, cx, cy, Math.max(R*.34, R-inset), S.form);
+    x.strokeStyle = PAL.arcane;
+    x.lineWidth = Math.max(1.2*px, P*.030); x.stroke();
+  }
+
+  /* 4. rank mark: one bold interior glyph per rank, nothing sub-pixel */
+  if(!small && S.mark !== 'none' && S.mark !== 'iris'){
+    const inkc = lit ? 'rgba(22,13,6,.60)' : S.off;
+    x.strokeStyle = inkc; x.fillStyle = inkc;
+    x.lineWidth = Math.max(1.6*px, R*.20); x.lineCap = 'butt';
+    const a = R*.42;
+    if(S.mark === 'bar' || S.mark === 'slot'){
+      x.beginPath(); x.moveTo(cx-a,cy); x.lineTo(cx+a,cy); x.stroke();
+    } else if(S.mark === 'cross'){
+      x.beginPath(); x.moveTo(cx-a,cy); x.lineTo(cx+a,cy);
+      x.moveTo(cx,cy-a); x.lineTo(cx,cy+a); x.stroke();
+    } else if(S.mark === 'star'){
+      x.beginPath();
+      for(let k=0;k<8;k++){
+        const ang = -Math.PI/2 + k*Math.PI/4, rr = (k&1) ? R*.18 : R*.54;
+        const qx=cx+Math.cos(ang)*rr, qy=cy+Math.sin(ang)*rr;
+        k ? x.lineTo(qx,qy) : x.moveTo(qx,qy);
+      }
+      x.closePath(); x.fill();
+    }
+    x.lineCap = 'round';
+  }
+
+  /* 5. gate: a second concentric outline makes the diamond read as a port */
+  if(kind === 'gate' && !small){
+    shapePath(x,cx,cy,R*.60,S.form);
+    x.strokeStyle = lit ? 'rgba(22,13,6,.50)' : rgba(S.off,.55);
+    x.lineWidth = Math.max(1*px, P*.024); x.stroke();
+  }
+
+  /* 6. socket iris: ALWAYS cyan, allocated or not.  The socket is the glyph
+        system, so it never swaps colour channel; the band alone says bought */
+  if(kind === 'socket'){
+    const ir = R*.52;
+    x.beginPath(); x.arc(cx,cy,ir,0,TAU); x.fillStyle = '#050908'; x.fill();
+    x.strokeStyle = PAL.arcane; x.lineWidth = Math.max(1.2*px, P*.030); x.stroke();
+    const cg = x.createRadialGradient(cx,cy,0,cx,cy,ir);
+    cg.addColorStop(0,'#ffffff');
+    cg.addColorStop(.40, PAL.socketIris);
+    cg.addColorStop(1,   rgba(PAL.arcane,.16));
+    x.beginPath(); x.arc(cx,cy,ir*.86,0,TAU); x.fillStyle = cg; x.fill();
+  }
+
+  /* 7. allocation band: FOUR arcs on the diagonals, hard notches on the
+        orthogonals.  A broken ring is a mark no rarity wears, and the notches
+        sit exactly where conduits leave, so links are never interrupted */
+  if(lit){
+    const bw = bandWidth(P), br = bandRadius(R,P), half = 0.58; /* +-33 deg */
+    const arcs = new Path2D();
+    for(let k=0;k<4;k++){
+      const c0 = Math.PI/4 + k*Math.PI/2;
+      arcs.moveTo(cx + Math.cos(c0-half)*br, cy + Math.sin(c0-half)*br);
+      arcs.arc(cx,cy,br,c0-half,c0+half);
+    }
+    x.lineCap = 'butt';
+    x.strokeStyle = PAL.bed; x.lineWidth = bw*1.75;             x.stroke(arcs);
+    if(small){
+      x.strokeStyle = PAL.ink; x.lineWidth = bw;                x.stroke(arcs);
+    } else {
+      x.strokeStyle = PAL.ember; x.lineWidth = bw;              x.stroke(arcs);
+      x.strokeStyle = PAL.ink;   x.lineWidth = Math.max(1*px, bw*.36); x.stroke(arcs);
+    }
+    x.lineCap = 'round';
+  }
 }
+
+/* -------------------------------------------------------- static layer
+   Plate, vignette, glyph field, seams, lattice, rims and every UNallocated
+   node, painted into ONE reused offscreen canvas.  Rebuilt only when the
+   board, rotation, radius toggle, canvas size, LOD or allocation changes, so
+   hover frames never touch it.                                            */
+let _bgC=null, _bgKey='', _bgCache=null;
+
+function staticLayer(S,P,sig){
+  const key = S+'|'+LOD+'|'+(showDia?1:0)+'|'+sig;
+  /* the cache OBJECT identity is part of the key: build() makes a new cache on
+     every board change and every rotate, and it also clears owned, so the
+     signature alone would collide and leave a stale plate on screen */
+  if(_bgC && _bgKey === key && _bgCache === cache) return _bgC;
+  if(!_bgC) _bgC = document.createElement('canvas');
+  if(_bgC.width !== S) _bgC.width = _bgC.height = S;
+
+  const x = _bgC.getContext('2d');
+  x.setTransform(1,0,0,1,0,0);
+  x.clearRect(0,0,S,S);
+
+  const m = cache.m, dia = cache.dia, sock = cache.sock;
+  const px = DPR, full = LOD === 'full', small = LOD === 'small';
+
+  /* forge-lit void */
+  let g = x.createRadialGradient(S*.5,S*.42,S*.03,S*.5,S*.52,S*.76);
+  g.addColorStop(0,PAL.voidIn); g.addColorStop(1,PAL.voidOut);
+  x.fillStyle = g; x.fillRect(0,0,S,S);
+
+  /* the plate: occupied cells fuse into one slab */
+  g = x.createLinearGradient(0,0,S*.34,S);
+  g.addColorStop(0,PAL.plateTop); g.addColorStop(1,PAL.plateBot);
+  x.fillStyle = g;
+  for(const i of m.keys()) x.fillRect((i%W)*P, ((i/W)|0)*P, P+.75, P+.75);
+
+  /* vignette FIRST, so it can never dim the glyph field or the gates that sit
+     at the board edge (the old order crushed both by up to 50%) */
+  g = x.createRadialGradient(S*.5,S*.5,S*.40,S*.5,S*.5,S*.80);
+  g.addColorStop(0,'rgba(0,0,0,0)'); g.addColorStop(1,'rgba(0,0,0,.30)');
+  x.fillStyle = g; x.fillRect(0,0,S,S);
+
+  /* glyph field: a lifted, hatched cyan plateau, not a wash you have to hunt */
+  const hasField = showDia && sock !== null && dia && dia.size;
+  if(hasField){
+    const cells = new Path2D();
+    for(const i of dia) cells.rect((i%W)*P, ((i/W)|0)*P, P+.75, P+.75);
+    x.fillStyle = PAL.arcaneFill; x.fill(cells);
+    if(!small){
+      x.save(); x.clip(cells);
+      x.strokeStyle = PAL.arcaneHatch;
+      x.lineWidth = Math.max(1*px, P*.020);
+      x.lineCap = 'butt';
+      x.beginPath();
+      for(let d = 0; d < S*2; d += P*.34){ x.moveTo(d,0); x.lineTo(d-S,S); }
+      x.stroke();
+      x.restore();
+      /* per-cell corner ticks: membership is legible cell by cell, so nobody
+         has to trace a ragged non-convex outline to know a node counts */
+      const tk = new Path2D(), L = P*.20, o = P*.09;
+      for(const i of dia){
+        const X=(i%W)*P, Y=((i/W)|0)*P;
+        tk.moveTo(X+o,Y+o+L);     tk.lineTo(X+o,Y+o);     tk.lineTo(X+o+L,Y+o);
+        tk.moveTo(X+P-o-L,Y+P-o); tk.lineTo(X+P-o,Y+P-o); tk.lineTo(X+P-o,Y+P-o-L);
+      }
+      x.strokeStyle = PAL.arcaneTick;
+      x.lineWidth = Math.max(1*px, P*.024);
+      x.lineCap='butt'; x.lineJoin='miter'; x.stroke(tk);
+      x.lineJoin='round';
+    }
+  }
+
+  /* hammered seams between plate tiles */
+  if(full){
+    const seams = new Path2D();
+    for(const i of m.keys()){
+      const r=(i/W)|0, c=i%W, X=c*P, Y=r*P;
+      if(c<W-1 && m.has(i+1)){ seams.moveTo(X+P,Y+P*.05); seams.lineTo(X+P,Y+P*.95); }
+      if(m.has(i+W))         { seams.moveTo(X+P*.05,Y+P); seams.lineTo(X+P*.95,Y+P); }
+    }
+    x.lineCap = 'butt';
+    x.lineWidth = Math.max(1*px,P*.020); x.strokeStyle = PAL.seam;    x.stroke(seams);
+    x.save(); x.translate(1.1*px,1.1*px);
+    x.lineWidth = Math.max(1*px,P*.014); x.strokeStyle = PAL.seamLit; x.stroke(seams);
+    x.restore();
+  }
+
+  /* THE LATTICE: every adjacency in the board graph, drawn once, dormant.
+     The board's real topology, its branches and dead ends, is visible before
+     a single node is bought.  The old renderer drew lines only between
+     allocated nodes, which hid the structure entirely. */
+  x.lineCap = 'round';
+  x.strokeStyle = PAL.lattice;
+  x.lineWidth  = Math.max(1*px, P*.024);
+  x.stroke(latticePath(P));
+
+  /* chamfered rim of the plate.  SQUARE caps, or every convex corner of the
+     staircase loses a lineWidth/2 notch and the outline beads */
+  const rim = boundaryPath(m,P);
+  x.lineCap = 'square';
+  x.save(); x.translate(0, Math.max(1.5*px,P*.042));
+  x.strokeStyle = PAL.rimShadow; x.lineWidth = Math.max(2*px,P*.080); x.stroke(rim);
+  x.restore();
+  x.strokeStyle = PAL.rimLit; x.lineWidth = Math.max(1*px,P*.046); x.stroke(rim);
+
+  /* hard border of the glyph field, after the plate rim so it always wins */
+  if(hasField){
+    const bp = boundaryPath(dia,P);
+    x.lineCap = 'square';
+    x.strokeStyle = PAL.arcaneEdgeDark; x.lineWidth = Math.max(3*px,P*.105); x.stroke(bp);
+    x.strokeStyle = PAL.arcaneEdge;     x.lineWidth = Math.max(1.4*px,P*.046); x.stroke(bp);
+  }
+
+  /* grain on the plate, BEFORE the nodes.  Node sprites carry their own dose,
+     so allocated and unallocated get identical surface treatment and nothing
+     is double-grained. */
+  if(LOD !== 'small') grainOver(x,S,S,false);
+
+  /* every UNallocated node */
+  for(const [i,key2] of m){
+    if(owned.has(i)) continue;
+    blit(x, i, key2, false, P);
+  }
+
+  _bgKey = key; _bgCache = cache;
+  return _bgC;
+}
+
+/* lattice is pure board geometry, so it is cached with the board */
+let _latP=-1, _latCache=null, _latPath=null;
+function latticePath(P){
+  if(_latPath && _latCache === cache && _latP === P) return _latPath;
+  const p = new Path2D(), m = cache.m;
+  for(const i of m.keys()){
+    const r=(i/W)|0, c=i%W, cx=c*P+P/2, cy=r*P+P/2;
+    if(c<W-1 && m.has(i+1)){ p.moveTo(cx,cy); p.lineTo(cx+P,cy); }
+    if(m.has(i+W))         { p.moveTo(cx,cy); p.lineTo(cx,cy+P); }
+  }
+  _latPath=p; _latCache=cache; _latP=P;
+  return p;
+}
+
+function blit(x,i,key,lit,P){
+  const kind = kindOf(key), rar = rarityOf(key);
+  const s = sprite(kind, rar, lit, cache.dia ? cache.dia.has(i) : false, P);
+  x.drawImage(s, (i%W)*P + P/2 - s._h, ((i/W)|0)*P + P/2 - s._h);
+}
+
+/* ------------------------------------------------------------------ draw
+   draw() is a requestAnimationFrame latch, so a fast pointer sweep coalesces
+   into one paint per frame.  Every existing call site keeps working.       */
+let _raf = 0;
+function draw(){
+  if(_raf) return;
+  _raf = requestAnimationFrame(()=>{ _raf = 0; try{ drawNow(); }catch(e){ console.error(e); } });
+}
+
+function drawNow(){
+  const cv = document.getElementById('cv');
+  if(!cv || !cache || !DATA) return;
+
+  /* resolution follows displayed size, so the pitch is a real number and
+     every minimum-width floor below actually does something */
+  DPR = Math.min(2, window.devicePixelRatio || 1);
+  const cssW = cv.clientWidth || 0;
+  if(cssW > 0){
+    const want = Math.max(300, Math.round(cssW * DPR));
+    if(cv.width !== want){ cv.width = cv.height = want; }
+  }
+
+  const x = cv.getContext('2d'), S = cv.width, P = S/W;
+  LOD = (P/DPR) < 22 ? 'small' : (P/DPR) < 34 ? 'mid' : 'full';
+
+  const m = cache.m;
+
+  /* cheap allocation signature: only the static layer needs it, and only a
+     click can change it, so hover frames always hit the cache */
+  let sum = 0; for(const i of owned) sum += i + 1;
+  const sig = owned.size + ':' + sum;
+
+  x.setTransform(1,0,0,1,0,0);
+  x.clearRect(0,0,S,S);
+  x.drawImage(staticLayer(S,P,sig), 0, 0);
+
+  /* hovered cell's adjacencies light up: shows what a purchase would connect */
+  if(hover !== null && m.has(hover)){
+    const r=(hover/W)|0, c=hover%W, hx=c*P+P/2, hy=r*P+P/2;
+    const p = new Path2D();
+    if(c<W-1 && m.has(hover+1)){ p.moveTo(hx,hy); p.lineTo(hx+P,hy); }
+    if(c>0   && m.has(hover-1)){ p.moveTo(hx,hy); p.lineTo(hx-P,hy); }
+    if(m.has(hover+W))         { p.moveTo(hx,hy); p.lineTo(hx,hy+P); }
+    if(m.has(hover-W))         { p.moveTo(hx,hy); p.lineTo(hx,hy-P); }
+    x.lineCap='round';
+    x.strokeStyle=PAL.latticeHot; x.lineWidth=Math.max(1*DPR,P*.030); x.stroke(p);
+  }
+
+  /* allocated nodes */
+  for(const i of owned){
+    const key = m.get(i); if(!key) continue;
+    blit(x, i, key, true, P);
+  }
+
+  /* conduits LAST, trimmed to run body edge to body edge, so node art can
+     never swallow them and they can never cover a node face.  They pass
+     through the notches in the allocation bands, so an owned route reads as
+     one continuous run rather than a set of stubs. */
+  const seg = new Path2D(); let any = false;
+  for(const i of owned){
+    const key = m.get(i); if(!key) continue;
+    const r=(i/W)|0, c=i%W, ax=c*P+P/2, ay=r*P+P/2;
+    const ra = outerR(kindOf(key), rarityOf(key), P);
+    for(let d=0; d<2; d++){
+      if(d===0 && c===W-1) continue;
+      const j = d ? i+W : i+1;
+      if(!owned.has(j) || !m.has(j)) continue;
+      const kb = m.get(j);
+      const rb = outerR(kindOf(kb), rarityOf(kb), P);
+      if(P - ra - rb <= 1) continue;
+      if(d){ seg.moveTo(ax, ay+ra); seg.lineTo(ax, ay+P-rb); }
+      else { seg.moveTo(ax+ra, ay); seg.lineTo(ax+P-rb, ay); }
+      any = true;
+    }
+  }
+  if(any){
+    x.lineCap='round';
+    x.strokeStyle='rgba(0,0,0,.72)'; x.lineWidth=Math.max(3*DPR,P*.130); x.stroke(seg);
+    x.strokeStyle=PAL.emberDim;      x.lineWidth=Math.max(2*DPR,P*.090); x.stroke(seg);
+    x.strokeStyle=PAL.ink;           x.lineWidth=Math.max(1.2*DPR,P*.042); x.stroke(seg);
+  }
+
+  /* hover: one gold ring concentric with the node, outside every band.  It
+     cannot be mistaken for the seam grid the way corner brackets could. */
+  if(hover !== null && m.has(hover)){
+    const r=(hover/W)|0, c=hover%W, hx=c*P+P/2, hy=r*P+P/2, hr=P*.478;
+    x.beginPath(); x.arc(hx,hy,hr,0,TAU);
+    x.strokeStyle='rgba(0,0,0,.60)'; x.lineWidth=Math.max(3*DPR,P*.070); x.stroke();
+    x.beginPath(); x.arc(hx,hy,hr,0,TAU);
+    x.strokeStyle=PAL.hover; x.lineWidth=Math.max(1.5*DPR,P*.038); x.stroke();
+  }
+
+  if(!_legendDone) buildLegend();
+}
+
+/* ----------------------------------------------------------- live legend
+   Drawn by the SAME paintNode() the board uses, so it can never drift out of
+   date the way seven hand-authored CSS dots did.  Purely additive: if the
+   .legend block is missing this does nothing.                              */
+let _legendDone = false;
+function buildLegend(){
+  const host = document.querySelector('.legend');
+  if(!host) return;
+  _legendDone = true;
+
+  const keepLod = LOD;
+  LOD = 'full';
+  const LP = 36 * DPR, H = Math.ceil(LP*.50) + 2;
+
+  const chip = (label, kind, rar, lit, rng) => {
+    const c = document.createElement('canvas');
+    c.width = c.height = H*2;
+    c.style.width = c.style.height = (H*2/DPR) + 'px';
+    c.style.verticalAlign = '-5px';
+    c.style.marginRight = '3px';
+    paintNode(c.getContext('2d'), H, H, LP, kind, rar, lit, rng);
+    const s = document.createElement('span');
+    s.appendChild(c); s.appendChild(document.createTextNode(label));
+    return s;
+  };
+
+  host.innerHTML = '';
+  host.appendChild(chip('normal',          'node','normal',    false,false));
+  host.appendChild(chip('magic',           'node','magic',     false,false));
+  host.appendChild(chip('rare',            'node','rare',      false,false));
+  host.appendChild(chip('legendary',       'node','legendary', false,false));
+  host.appendChild(chip('gate',            'gate','-',         false,false));
+  host.appendChild(chip('glyph socket',    'socket','-',       false,false));
+  host.appendChild(chip('allocated',       'node','rare',      true, false));
+  host.appendChild(chip('in glyph radius', 'node','normal',    false,true ));
+
+  LOD = keepLod;
+}
+
+/* --------------------------------------------------------------- resizing */
+(function(){
+  const cv0 = document.getElementById('cv');
+  if(cv0 && typeof ResizeObserver !== 'undefined'){
+    new ResizeObserver(()=>draw()).observe(cv0);
+  }
+  window.addEventListener('resize', draw);
+})();
 
 function totals(){
   const {m,sock,dia}=cache;
