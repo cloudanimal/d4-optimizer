@@ -20,18 +20,26 @@ LEGEND = json.load(open(os.path.join(D, 'legendary_nodes.json')))
 
 ATTR_BUCKET = {a: b for b, lst in BUCKETS.items() for a in lst}
 
-# Example baseline: a character's town stats panel (gear + current paragon,
-# unconditional sources only). Replace with your own from the character sheet.
+# GEAR-ONLY baseline. The solver adds the paragon contribution itself, so the
+# baseline must exclude paragon or it double-counts.
+#
+# Derived from the extracted gear affixes. Note gear supplies almost no additive
+# damage: its damage affixes are separate multipliers, which is why that bucket
+# starts near zero here and is filled by paragon.
+#
+#   crit chance     5 base + 7.5 (Horned Cudgel)
+#   crit damage    50 base + 75  (Gohr's)
+#   vulnerable     20 base + 60  (Azurewrath) + 60 (Ramaladni's)
+#   attack speed          15     (Worldknot Ring)
+#   separate mult         20 (Channeler Physical) + 13 (Azurewrath All)
+#                       + 32 (Azurewrath Physical) + 21 (Bathed-in-earth Vuln)
 BASELINE = {
-    'additive_damage': 0.0,      # panel does not expose a single additive total
-    'crit_chance': 53.8,
-    'crit_damage': 5110.2,
-    'vulnerable': 421.1,
-    'attack_speed': 20.0,
-    # Separate multipliers read off the character's gear. These sit in their
-    # own bucket rather than adding to anything, and the stats panel does not
-    # show them, which is why they have to come from the item tooltips.
-    'separate_multiplier': 20.0 + 13.0 + 32.0 + 21.0,   # Physical, All, Physical, Vulnerable
+    'additive_damage': 0.0,
+    'crit_chance': 12.5,
+    'crit_damage': 125.0,
+    'vulnerable': 140.0,
+    'attack_speed': 15.0,
+    'separate_multiplier': 86.0,
 }
 
 # How often each condition is actually live for a Whirlwind build. These are

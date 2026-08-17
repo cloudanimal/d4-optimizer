@@ -265,14 +265,28 @@ def main():
         print(f"   {name:<20} through={e[0][CAP][2] if e else '-':>3}  terminal={t[0][CAP][2] if t else '-':>3}")
 
     others = [n for n in curves if n != 'Start']
+    # Board ORDER only matters in that the last board is terminal (no exit path
+    # to buy), so use combinations and try each candidate as the terminal one.
+    # Glyphs are assigned by trying every glyph on every board and taking the
+    # best assignment greedily, rather than permuting all 120 orderings.
     best = None
     for nb in range(2, MAXB + 1):
-        for combo in itertools.permutations(others, nb - 1):
-            boards = ('Start',) + combo
-            for perm in itertools.permutations(GLYPHS, nb):
-                r = evaluate(list(zip(boards, perm)), curves, BUDGET, CAP)
+        for combo in itertools.combinations(others, nb - 1):
+            for term_i in range(len(combo)):
+                order = ['Start'] + [b for i, b in enumerate(combo) if i != term_i] \
+                        + [combo[term_i]]
+                # greedy glyph assignment: repeatedly take the best remaining pair
+                free = set(GLYPHS)
+                assign = {}
+                for b in order:
+                    m = 'terminal' if b == order[-1] else 'through'
+                    pick = max(free, key=lambda g: (curves[b][g][m][0][CAP][1]
+                                                    if curves[b][g][m] else -1))
+                    assign[b] = pick
+                    free.discard(pick)
+                r = evaluate([(b, assign[b]) for b in order], curves, BUDGET, CAP)
                 if r and (best is None or r[0] > best[0]):
-                    best = (r[0], list(zip(boards, perm)), r[1], r[2])
+                    best = (r[0], [(b, assign[b]) for b in order], r[1], r[2])
     if not best:
         print("\nno legal chain found")
         return
