@@ -6,252 +6,405 @@
 <title>D4 Optimizer — Paragon Board Explorer</title>
 <style>
   :root{
-    --bg:#0c0a08; --panel:#15110d; --panel2:#1c1712; --edge:#3a2f22;
-    --gold:#c8a35a; --dim:#9a8f7d; --text:#e8dfce;
-    --normal:#6b6257; --magic:#5a7fb5; --rare:#b8a24a; --legend:#c8843c;
-    --gate:#a8443c; --socket:#c8843c; --owned:#e04a3a;
+    --bg:#0b0908; --panel:#14100c; --panel2:#1b1611; --edge:#3a2f22;
+    --gold:#c9a45c; --dim:#9a8f7d; --text:#e9e0cf;
+    --ok:#7fbf7f; --warn:#d8a14a; --todo:#8a8078;
   }
   *{box-sizing:border-box}
   body{margin:0;background:var(--bg);color:var(--text);
-    font:14px/1.5 -apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,sans-serif;padding:16px}
-  h1{margin:0 0 4px;font-size:22px;letter-spacing:.14em;text-transform:uppercase;color:var(--gold);
+    font:14px/1.55 -apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,sans-serif;padding:18px 20px 60px}
+  .wrap{max-width:1280px;margin:0 auto}
+  h1{margin:0;font-size:23px;letter-spacing:.15em;text-transform:uppercase;color:var(--gold);
      font-family:"Iowan Old Style",Georgia,serif}
-  .sub{color:var(--dim);font-size:12px;margin-bottom:16px}
-  .layout{display:grid;grid-template-columns:minmax(0,1fr) 320px;gap:18px;align-items:start}
-  @media(max-width:900px){.layout{grid-template-columns:1fr}}
-  .panel{background:var(--panel);border:1px solid var(--edge);border-radius:5px;padding:14px}
-  .controls{display:flex;gap:10px;flex-wrap:wrap;margin-bottom:14px;align-items:center}
+  .sub{color:var(--dim);font-size:12.5px;margin:5px 0 16px}
+  .tabs{display:flex;gap:2px;border-bottom:1px solid var(--edge);margin-bottom:18px}
+  .tab{padding:9px 18px;cursor:pointer;color:var(--dim);border:1px solid transparent;
+    border-bottom:none;border-radius:5px 5px 0 0;font-size:13px;letter-spacing:.06em}
+  .tab:hover{color:var(--text)}
+  .tab.on{color:var(--gold);background:var(--panel);border-color:var(--edge);
+    margin-bottom:-1px;padding-bottom:10px}
+  .view{display:none}.view.on{display:block}
+  .layout{display:grid;grid-template-columns:minmax(0,1fr) 300px;gap:16px;align-items:start}
+  @media(max-width:920px){.layout{grid-template-columns:1fr}}
+  .panel{background:var(--panel);border:1px solid var(--edge);border-radius:6px;padding:14px}
+  .controls{display:flex;gap:8px;flex-wrap:wrap;margin-bottom:14px;align-items:center}
   select,button{background:var(--panel2);color:var(--text);border:1px solid var(--edge);
-    border-radius:4px;padding:7px 10px;font:inherit;font-size:13px;cursor:pointer}
+    border-radius:5px;padding:7px 11px;font:inherit;font-size:13px;cursor:pointer}
   button:hover,select:hover{border-color:var(--gold)}
-  button.on{background:var(--gold);color:#1a1409;border-color:var(--gold);font-weight:600}
-  #board{display:grid;gap:1px;background:#0a0806;padding:6px;border-radius:4px;
-    border:1px solid var(--edge);width:100%;aspect-ratio:1/1}
-  .cell{border-radius:2px;position:relative;cursor:pointer;transition:none}
-  .cell.empty{background:transparent;cursor:default}
-  .cell.normal{background:#2a2620}.cell.magic{background:#243447}
-  .cell.rare{background:#3d3418}.cell.legendary{background:#4a2f16}
-  .cell.gate{background:#4a1f1c;border-radius:50%}
-  .cell.socket{background:#5a3a14;border-radius:50%}
-  .cell.inrange{outline:1px solid rgba(224,74,58,.30);outline-offset:-1px}
-  .cell.owned{box-shadow:inset 0 0 0 2px var(--owned)}
-  .cell:hover{filter:brightness(1.7)}
-  .stat{display:flex;justify-content:space-between;padding:4px 0;border-bottom:1px solid var(--edge);font-size:13px}
+  button.on{background:linear-gradient(180deg,#d8b06a,#b3873f);color:#1a1409;
+    border-color:#d8b06a;font-weight:600}
+  canvas{display:block;width:100%;height:auto;border-radius:6px;background:#080606;
+    border:1px solid var(--edge);cursor:crosshair}
+  .stat{display:flex;justify-content:space-between;padding:5px 0;border-bottom:1px solid #2a231a;font-size:13px}
   .stat b{color:var(--gold);font-variant-numeric:tabular-nums}
-  .k{font-size:10.5px;letter-spacing:.14em;text-transform:uppercase;color:var(--dim);margin:14px 0 6px}
-  #tip{position:fixed;pointer-events:none;background:#000;border:1px solid var(--gold);
-    border-radius:4px;padding:9px 11px;font-size:12.5px;max-width:290px;display:none;z-index:9;
-    box-shadow:0 4px 18px rgba(0,0,0,.7)}
-  #tip .n{color:var(--gold);font-weight:600;margin-bottom:3px}
-  #tip .r{color:var(--dim);font-size:11px;text-transform:uppercase;letter-spacing:.08em}
-  #tip ul{margin:6px 0 0;padding-left:15px}
-  .legend{display:flex;gap:12px;flex-wrap:wrap;font-size:11.5px;color:var(--dim);margin-top:10px}
-  .swatch{display:inline-block;width:10px;height:10px;border-radius:2px;margin-right:4px;vertical-align:-1px}
-  .hint{color:var(--dim);font-size:12px;margin-top:10px;line-height:1.5}
+  .k{font-size:10px;letter-spacing:.16em;text-transform:uppercase;color:var(--dim);margin:15px 0 7px}
+  .k:first-child{margin-top:0}
+  #tip{position:fixed;pointer-events:none;background:#050403;border:1px solid var(--gold);
+    border-radius:5px;padding:10px 12px;font-size:12.5px;max-width:300px;display:none;z-index:9;
+    box-shadow:0 6px 26px rgba(0,0,0,.85)}
+  #tip .n{color:var(--gold);font-weight:600;margin-bottom:2px;font-size:13.5px}
+  #tip .r{color:var(--dim);font-size:10.5px;text-transform:uppercase;letter-spacing:.1em}
+  #tip ul{margin:7px 0 0;padding-left:16px}#tip li{margin:2px 0}
+  .legend{display:flex;gap:14px;flex-wrap:wrap;font-size:11.5px;color:var(--dim);margin-top:11px}
+  .sw{display:inline-block;width:11px;height:11px;border-radius:50%;margin-right:5px;vertical-align:-1px}
+  .hint{color:var(--dim);font-size:12px;margin-top:12px;line-height:1.55}
+  /* roadmap */
+  .road{display:grid;grid-template-columns:repeat(auto-fit,minmax(300px,1fr));gap:14px}
+  .card{background:var(--panel);border:1px solid var(--edge);border-radius:6px;padding:16px;
+    border-top:3px solid var(--edge)}
+  .card.done{border-top-color:var(--ok)}
+  .card.now{border-top-color:var(--warn)}
+  .card.next{border-top-color:var(--todo)}
+  .card h3{margin:0 0 3px;font-size:14px;letter-spacing:.05em}
+  .card .tagline{color:var(--dim);font-size:11px;text-transform:uppercase;letter-spacing:.13em;margin-bottom:10px}
+  .card ul{margin:0;padding-left:17px}.card li{margin:5px 0;font-size:13px}
+  .card li small{color:var(--dim);display:block;font-size:11.5px;margin-top:1px}
+  table{width:100%;border-collapse:collapse;font-size:13px}
+  th,td{text-align:left;padding:7px 9px;border-bottom:1px solid #2a231a}
+  th{font-size:10px;letter-spacing:.14em;text-transform:uppercase;color:var(--dim);font-weight:400}
+  td.n{text-align:right;font-variant-numeric:tabular-nums;color:var(--gold)}
+  .pill{display:inline-block;font-size:10px;letter-spacing:.1em;text-transform:uppercase;
+    padding:2px 7px;border-radius:9px;border:1px solid var(--edge);color:var(--dim)}
+  .pill.ok{color:var(--ok);border-color:#2f4a2f}
+  .pill.warn{color:var(--warn);border-color:#4a3a1c}
   a{color:var(--gold)}
 </style>
 </head>
 <body>
+<div class="wrap">
 
-<h1>Paragon Board Explorer</h1>
-<div class="sub">All 79 boards across 8 classes, with resolved node values.
-  Click nodes to allocate. <a href="./">About this project</a></div>
+<h1>D4 Optimizer</h1>
+<div class="sub">Paragon board explorer &middot; all 79 boards across 8 classes, with resolved node values</div>
 
-<div class="controls">
-  <select id="cls"></select>
-  <select id="brd"></select>
-  <select id="gly"></select>
-  <button id="rot">Rotate 0&deg;</button>
-  <button id="clr">Clear</button>
-  <button id="dia" class="on">Glyph radius</button>
+<div class="tabs">
+  <div class="tab on" data-v="explorer">Board Explorer</div>
+  <div class="tab" data-v="roadmap">What&rsquo;s Next</div>
+  <div class="tab" data-v="data">Data &amp; Verification</div>
 </div>
 
-<div class="layout">
-  <div class="panel">
-    <div id="board"></div>
-    <div class="legend">
-      <span><i class="swatch" style="background:#2a2620"></i>normal</span>
-      <span><i class="swatch" style="background:#243447"></i>magic</span>
-      <span><i class="swatch" style="background:#3d3418"></i>rare</span>
-      <span><i class="swatch" style="background:#4a2f16"></i>legendary</span>
-      <span><i class="swatch" style="background:#4a1f1c;border-radius:50%"></i>gate</span>
-      <span><i class="swatch" style="background:#5a3a14;border-radius:50%"></i>glyph socket</span>
-      <span><i class="swatch" style="box-shadow:inset 0 0 0 2px var(--owned)"></i>allocated</span>
-    </div>
+<!-- ───────────── explorer ───────────── -->
+<div class="view on" id="v-explorer">
+  <div class="controls">
+    <select id="cls"></select>
+    <select id="brd"></select>
+    <select id="gly"></select>
+    <button id="rot">Rotate 0&deg;</button>
+    <button id="dia" class="on">Glyph radius</button>
+    <button id="clr">Clear</button>
   </div>
 
-  <div>
+  <div class="layout">
     <div class="panel">
-      <div class="k" style="margin-top:0">Allocation</div>
-      <div class="stat"><span>Points spent</span><b id="pts">0</b></div>
-      <div class="stat"><span>Strength</span><b id="str">0</b></div>
-      <div class="stat"><span>Dexterity</span><b id="dex">0</b></div>
-      <div class="stat"><span>Intelligence</span><b id="int">0</b></div>
-      <div class="stat"><span>Willpower</span><b id="wil">0</b></div>
+      <canvas id="cv" width="1000" height="1000"></canvas>
+      <div class="legend">
+        <span><i class="sw" style="background:#4a453d"></i>normal</span>
+        <span><i class="sw" style="background:#3f6ea8"></i>magic</span>
+        <span><i class="sw" style="background:#c9a83f"></i>rare</span>
+        <span><i class="sw" style="background:#d2802f"></i>legendary</span>
+        <span><i class="sw" style="background:#9a3b32;border-radius:2px;transform:rotate(45deg)"></i>gate</span>
+        <span><i class="sw" style="background:#e0902f;box-shadow:0 0 7px #e0902f"></i>glyph socket</span>
+        <span><i class="sw" style="background:#2a2620;box-shadow:0 0 0 2px #e04a3a"></i>allocated</span>
+      </div>
+    </div>
 
-      <div class="k">In glyph radius</div>
-      <div class="stat"><span id="glystat">Stat in range</span><b id="inrange">0</b></div>
-      <div class="stat"><span>Blocks of 5</span><b id="blocks">0</b></div>
+    <div>
+      <div class="panel">
+        <div class="k">Allocation</div>
+        <div class="stat"><span>Points spent</span><b id="pts">0</b></div>
+        <div class="stat"><span>Strength</span><b id="str">0</b></div>
+        <div class="stat"><span>Dexterity</span><b id="dex">0</b></div>
+        <div class="stat"><span>Intelligence</span><b id="int">0</b></div>
+        <div class="stat"><span>Willpower</span><b id="wil">0</b></div>
 
-      <div class="k">Board</div>
-      <div class="stat"><span>Cells</span><b id="cells">0</b></div>
-      <div class="stat"><span>Legendary</span><b id="nleg">0</b></div>
-      <div class="stat"><span>Rare</span><b id="nrare">0</b></div>
-      <div class="stat"><span>Magic</span><b id="nmagic">0</b></div>
-      <div class="hint">A glyph counts its stat only from nodes purchased
-        inside a Manhattan-distance-5 diamond around its socket. That is why
-        placement matters more than raw node value.</div>
+        <div class="k">In glyph radius</div>
+        <div class="stat"><span id="glystat">Stat in range</span><b id="inrange">0</b></div>
+        <div class="stat"><span>Blocks of 5</span><b id="blocks">0</b></div>
+        <div class="stat"><span>Max possible</span><b id="maxrange">0</b></div>
+
+        <div class="k">This board</div>
+        <div class="stat"><span>Cells</span><b id="cells">0</b></div>
+        <div class="stat"><span>Legendary</span><b id="nleg">0</b></div>
+        <div class="stat"><span>Rare</span><b id="nrare">0</b></div>
+        <div class="stat"><span>Magic</span><b id="nmagic">0</b></div>
+        <div class="hint">A glyph counts its stat only from nodes purchased inside a
+          Manhattan-distance-5 diamond around its socket. A weaker node inside the
+          diamond can beat a stronger one outside it, which is what makes paragon a
+          search problem rather than a shopping list.</div>
+      </div>
     </div>
   </div>
 </div>
 
+<!-- ───────────── roadmap ───────────── -->
+<div class="view" id="v-roadmap">
+  <div class="road">
+    <div class="card done">
+      <h3>Done</h3>
+      <div class="tagline">verified and committed</div>
+      <ul>
+        <li>Complete corpus, all 8 classes<small>79 boards, 561 nodes, 160 glyphs, 2,853 skills, 11,795 items, 1,273 aspects</small></li>
+        <li>The six budget scalars recovered<small>Compiled into the client, not shipped as data. Each confirmed by 42-58 independent formulas</small></li>
+        <li>Glyph radius established as Manhattan 5<small>Pixel measurement plus a constant 53-cell coverage signature</small></li>
+        <li>Glyph level formula<small>Reproduces all 8 observed in-game values exactly</small></li>
+        <li>Damage bucket table<small>Derived from Blizzard's own attribute naming, not community lore</small></li>
+        <li>Board reader from screenshots<small>4 of 5 boards at 100% match; point total reconstructs to exactly 325</small></li>
+        <li>Solver with board chain costs<small>Crossing a board to attach the next costs 19-27 points</small></li>
+        <li>This browser app</li>
+      </ul>
+    </div>
+
+    <div class="card now">
+      <h3>Blocking</h3>
+      <div class="tagline">stops the numbers being trustworthy</div>
+      <ul>
+        <li>Robust purchased-node detection
+          <small>Ring detection currently rides on the occupancy threshold: changing an
+          unrelated setting moved one board from 52 to 43 points. Fix is to detect the red
+          ring as an annulus around each node centre, independent of occupancy.</small></li>
+        <li>Additive-damage baseline
+          <small>The stats panel exposes crit, vulnerable and attack speed totals but no
+          single additive figure, so that bucket starts at zero and inflates anything
+          landing in it. Computable from the verified boards once detection is stable.</small></li>
+      </ul>
+    </div>
+
+    <div class="card next">
+      <h3>Next</h3>
+      <div class="tagline">once the blockers clear</div>
+      <ul>
+        <li>Run the solver for real<small>Answer whether a given 5 boards are the best 5, at what rotations, with which glyphs</small></li>
+        <li>Gear comparison<small>Screenshot a drop, get "upgrade or not, and by how much". Uses the same damage model</small></li>
+        <li>Solver in the browser<small>Port the greedy-plus-knapsack search so the app optimizes, not just displays</small></li>
+        <li>Build import/export<small>Shareable URLs, and reading a build back from a planner link</small></li>
+      </ul>
+    </div>
+
+    <div class="card next">
+      <h3>Needed for a full build optimizer</h3>
+      <div class="tagline">data is done, modelling is not</div>
+      <ul>
+        <li>Skill damage wiring<small>39 power tables are in hand, but nothing yet maps each skill to its table and coefficient</small></li>
+        <li>Rotation and uptime model<small>How often Berserking, Fortified or a given shout is live. Build-specific judgement calls, kept visible rather than buried</small></li>
+        <li>Breakpoints<small>Resource costs, cooldown thresholds, attack speed interactions</small></li>
+        <li>Staged search<small>Skills x gear x aspects x tempering x paragon is far too large to search globally; it has to be optimized in stages</small></li>
+      </ul>
+    </div>
+  </div>
+</div>
+
+<!-- ───────────── data ───────────── -->
+<div class="view" id="v-data">
+  <div class="layout" style="grid-template-columns:minmax(0,1fr) minmax(0,1fr)">
+    <div class="panel">
+      <div class="k">How each fact was established</div>
+      <table>
+        <tr><th>Fact</th><th>Evidence</th><th></th></tr>
+        <tr><td>Board geometry</td><td>Two sources identical cell for cell, 10 of 10 boards</td><td><span class="pill ok">verified</span></td></tr>
+        <tr><td>Node values</td><td>149 of 149 formulas agree across sources</td><td><span class="pill ok">verified</span></td></tr>
+        <tr><td>The six scalars</td><td>42-58 formulas each, one distinct value</td><td><span class="pill ok">verified</span></td></tr>
+        <tr><td>Glyph radius</td><td>Pixel measurement + constant 53-cell coverage</td><td><span class="pill ok">verified</span></td></tr>
+        <tr><td>Glyph level formula</td><td>All 8 observed values reproduce exactly</td><td><span class="pill ok">verified</span></td></tr>
+        <tr><td>Damage buckets</td><td>Blizzard's own attribute naming</td><td><span class="pill ok">verified</span></td></tr>
+        <tr><td>Board reading</td><td>Occupancy matched a known 441-cell layout at 100%</td><td><span class="pill ok">verified</span></td></tr>
+        <tr><td>Purchased-node reading</td><td>Threshold-sensitive; moved 52 &rarr; 43 on a config change</td><td><span class="pill warn">fragile</span></td></tr>
+        <tr><td>Uptime assumptions</td><td>Judgement calls, exposed in a visible table</td><td><span class="pill warn">modelled</span></td></tr>
+      </table>
+    </div>
+
+    <div class="panel">
+      <div class="k">The six budget scalars</div>
+      <table>
+        <tr><th></th><th>Offensive</th><th>Defensive</th></tr>
+        <tr><td>Magic</td><td class="n">0.025</td><td class="n">0.02</td></tr>
+        <tr><td>Rare Minor</td><td class="n">0.05</td><td class="n">0.04</td></tr>
+        <tr><td>Rare Major</td><td class="n">0.05</td><td class="n">0.04</td></tr>
+      </table>
+      <div class="hint">Many node values are stored as
+        <code>coefficient &times; ParagonPowerBudgetMultiplierNode{rarity}{type}()</code>.
+        That function appears 310 times as a reference and never once as a definition,
+        because it is compiled into the client. Recovered by cross-referencing a
+        planner's resolved formula table.</div>
+
+      <div class="k">Corpus</div>
+      <table>
+        <tr><td>Boards</td><td class="n">79</td></tr>
+        <tr><td>Nodes</td><td class="n">561</td></tr>
+        <tr><td>Glyphs</td><td class="n">160</td></tr>
+        <tr><td>Skills</td><td class="n">2,853</td></tr>
+        <tr><td>Items</td><td class="n">11,795</td></tr>
+        <tr><td>Aspects</td><td class="n">1,273</td></tr>
+        <tr><td>Uniques / Mythics</td><td class="n">243 / 35</td></tr>
+      </table>
+    </div>
+  </div>
+</div>
+
+</div>
 <div id="tip"></div>
 
 <script>
 const W = 21;
 const STAT = {Strength_Core:'str', Dexterity_Core:'dex',
               Intelligence_Core:'int', Willpower_Core:'wil'};
-let DATA = null, board = null, rot = 0, owned = new Set(), showDia = true;
+const COL = {normal:'#4a453d', magic:'#3f6ea8', rare:'#c9a83f', legendary:'#d2802f'};
+let DATA=null, board=0, rot=0, owned=new Set(), showDia=true, hover=null, cache=null;
 
 const $ = id => document.getElementById(id);
-const rotate = (r, c, k) => { for (let i=0;i<k;i++) { const t=r; r=c; c=W-1-t; } return [r,c]; };
+const rotc = (r,c,k) => { for(let i=0;i<k;i++){const t=r;r=c;c=W-1-t;} return [r,c]; };
 
-async function loadClass(file) {
-  DATA = await (await fetch('data/' + file)).json();
-  const b = $('brd'); b.innerHTML = '';
-  DATA.boards.forEach((bd,i) => b.add(new Option(bd.name, i)));
-  const g = $('gly'); g.innerHTML = '';
-  g.add(new Option('— no glyph —',''));
-  Object.entries(DATA.glyphs)
-    .sort((a,b)=> (a[1].name||'').localeCompare(b[1].name||''))
-    .forEach(([k,v]) => v.name && g.add(new Option(v.name, k)));
-  board = 0; rot = 0; owned.clear();
-  render();
+document.querySelectorAll('.tab').forEach(t => t.onclick = () => {
+  document.querySelectorAll('.tab').forEach(x=>x.classList.remove('on'));
+  document.querySelectorAll('.view').forEach(x=>x.classList.remove('on'));
+  t.classList.add('on'); $('v'+'-'+t.dataset.v).classList.add('on');
+  if (t.dataset.v==='explorer') draw();
+});
+
+async function loadClass(file){
+  DATA = await (await fetch('data/'+file)).json();
+  const b=$('brd'); b.innerHTML='';
+  DATA.boards.forEach((bd,i)=>b.add(new Option(bd.name,i)));
+  const g=$('gly'); g.innerHTML=''; g.add(new Option('— no glyph —',''));
+  Object.entries(DATA.glyphs).sort((a,b)=>(a[1].name||'').localeCompare(b[1].name||''))
+    .forEach(([k,v])=>v.name&&g.add(new Option(v.name,k)));
+  board=0; rot=0; owned.clear(); build();
 }
 
-function cells() {
-  const bd = DATA.boards[board], out = new Map();
-  for (const g of bd.grid) {
-    const [r,c] = rotate(g.row, g.col, rot);
-    out.set(r*W+c, g.node);
-  }
-  return out;
+function build(){
+  const bd=DATA.boards[board], m=new Map();
+  for(const g of bd.grid){ const [r,c]=rotc(g.row,g.col,rot); m.set(r*W+c,g.node); }
+  let sock=null; for(const [i,n] of m) if(n.includes('Socket')) sock=i;
+  const dia=new Set();
+  if(sock!==null){ const sr=(sock/W)|0, sc=sock%W;
+    for(const i of m.keys()){ const r=(i/W)|0,c=i%W;
+      if(Math.abs(r-sr)+Math.abs(c-sc)<=5) dia.add(i); } }
+  cache={m,sock,dia};
+  draw(); totals();
 }
 
-function socketOf(m) {
-  for (const [i,n] of m) if (n.includes('Socket')) return i;
-  return null;
-}
-
-function render() {
-  const m = cells(), sock = socketOf(m);
-  const el = $('board');
-  el.style.gridTemplateColumns = `repeat(${W},1fr)`;
-  el.innerHTML = '';
-  const dia = new Set();
-  if (sock !== null && showDia) {
-    const sr = Math.floor(sock/W), sc = sock%W;
-    for (const i of m.keys()) {
-      const r = Math.floor(i/W), c = i%W;
-      if (Math.abs(r-sr)+Math.abs(c-sc) <= 5) dia.add(i);
-    }
-  }
-  const count = {legendary:0, rare:0, magic:0, normal:0};
-  for (let i=0;i<W*W;i++) {
-    const d = document.createElement('div');
-    d.className = 'cell';
-    const key = m.get(i);
-    if (!key) { d.classList.add('empty'); el.appendChild(d); continue; }
-    const n = DATA.nodes[key];
-    let kind = n.rarity;
-    if (key.includes('Gate')) kind = 'gate';
-    else if (key.includes('Socket')) kind = 'socket';
-    else count[n.rarity] = (count[n.rarity]||0)+1;
-    d.classList.add(kind);
-    if (dia.has(i)) d.classList.add('inrange');
-    if (owned.has(i)) d.classList.add('owned');
-    d.dataset.i = i;
-    el.appendChild(d);
-  }
-  $('cells').textContent = m.size;
-  $('nleg').textContent = count.legendary||0;
-  $('nrare').textContent = count.rare||0;
-  $('nmagic').textContent = count.magic||0;
-  $('rot').textContent = `Rotate ${rot*90}°`;
-  totals(m, sock);
-}
-
-function totals(m, sock) {
-  const t = {str:0,dex:0,int:0,wil:0};
-  let inrange = 0;
-  const gk = $('gly').value;
-  const g = gk ? DATA.glyphs[gk] : null;
-  let want = null;
-  if (g) {
-    const d = (g.affixes.find(a => /purchased within range/i.test(a.desc||''))||{}).desc || '';
-    const mm = d.match(/every 5 (Strength|Dexterity|Intelligence|Willpower)/i);
-    if (mm) want = mm[1] + '_Core';
-  }
-  const sr = sock===null?0:Math.floor(sock/W), sc = sock===null?0:sock%W;
-  for (const i of owned) {
-    const key = m.get(i); if (!key) continue;
-    for (const a of DATA.nodes[key].attrs) {
-      const s = STAT[a.attribute];
-      if (s && a.value) t[s] += a.value;
-      if (want && a.attribute === want && a.value && sock!==null) {
-        const r = Math.floor(i/W), c = i%W;
-        if (Math.abs(r-sr)+Math.abs(c-sc) <= 5) inrange += a.value;
+function draw(){
+  if(!cache) return;
+  const cv=$('cv'), x=cv.getContext('2d'), S=cv.width, P=S/W;
+  const {m,sock,dia}=cache;
+  x.clearRect(0,0,S,S);
+  // diamond wash
+  if(showDia){ x.fillStyle='rgba(214,74,58,.07)';
+    for(const i of dia) x.fillRect(((i%W))*P,(((i/W)|0))*P,P,P); }
+  // connectors between allocated neighbours
+  x.strokeStyle='#d1452f'; x.lineWidth=Math.max(2,P*.10); x.lineCap='round';
+  for(const i of owned){ const r=(i/W)|0,c=i%W;
+    for(const [dr,dc] of [[0,1],[1,0]]){ const j=(r+dr)*W+(c+dc);
+      if(owned.has(j)&&m.has(j)){ x.beginPath();
+        x.moveTo(c*P+P/2,r*P+P/2); x.lineTo((c+dc)*P+P/2,(r+dr)*P+P/2); x.stroke(); } } }
+  // nodes
+  for(const [i,key] of m){
+    const r=(i/W)|0, c=i%W, cx=c*P+P/2, cy=r*P+P/2;
+    const n=DATA.nodes[key];
+    const gate=key.includes('Gate'), socket=key.includes('Socket');
+    const rad=P*(socket?.40:gate?.34:.33);
+    // tile
+    x.fillStyle='rgba(255,255,255,.028)';
+    x.fillRect(c*P+P*.06,r*P+P*.06,P*.88,P*.88);
+    if(gate){
+      x.save(); x.translate(cx,cy); x.rotate(Math.PI/4);
+      x.fillStyle='#9a3b32'; x.fillRect(-rad*.8,-rad*.8,rad*1.6,rad*1.6);
+      x.restore();
+    } else if(socket){
+      x.beginPath(); x.arc(cx,cy,rad,0,7);
+      const g=x.createRadialGradient(cx,cy,1,cx,cy,rad*1.7);
+      g.addColorStop(0,'#f5c268'); g.addColorStop(1,'rgba(224,144,47,0)');
+      x.fillStyle=g; x.fill();
+      x.beginPath(); x.arc(cx,cy,rad*.62,0,7); x.fillStyle='#e0902f'; x.fill();
+    } else {
+      x.beginPath(); x.arc(cx,cy,rad,0,7);
+      x.fillStyle=COL[n.rarity]||'#4a453d'; x.globalAlpha=owned.has(i)?1:.55; x.fill();
+      x.globalAlpha=1;
+      if(n.rarity==='legendary'||n.rarity==='rare'){
+        x.beginPath(); x.arc(cx,cy,rad*1.02,0,7);
+        x.strokeStyle=n.rarity==='legendary'?'#f2a24a':'#e8cf72';
+        x.lineWidth=Math.max(1,P*.05); x.stroke();
       }
     }
+    if(owned.has(i)){
+      x.beginPath(); x.arc(cx,cy,rad*1.22,0,7);
+      x.strokeStyle='#e04a3a'; x.lineWidth=Math.max(2,P*.09); x.stroke();
+    }
+    if(hover===i){
+      x.beginPath(); x.arc(cx,cy,rad*1.45,0,7);
+      x.strokeStyle='rgba(255,235,190,.85)'; x.lineWidth=Math.max(1.5,P*.06); x.stroke();
+    }
   }
-  $('pts').textContent = owned.size;
-  $('str').textContent = Math.round(t.str);
-  $('dex').textContent = Math.round(t.dex);
-  $('int').textContent = Math.round(t.int);
-  $('wil').textContent = Math.round(t.wil);
-  $('glystat').textContent = want ? want.replace('_Core','') + ' in range' : 'Stat in range';
-  $('inrange').textContent = Math.round(inrange);
-  $('blocks').textContent = Math.floor(inrange/5);
 }
 
-$('board').addEventListener('click', e => {
-  const i = e.target.dataset && e.target.dataset.i;
-  if (i === undefined) return;
-  const k = +i;
-  owned.has(k) ? owned.delete(k) : owned.add(k);
-  render();
-});
+function totals(){
+  const {m,sock,dia}=cache;
+  const t={str:0,dex:0,int:0,wil:0}; let inr=0,maxr=0;
+  const gk=$('gly').value, g=gk?DATA.glyphs[gk]:null;
+  let want=null;
+  if(g){ const d=(g.affixes.find(a=>/purchased within range/i.test(a.desc||''))||{}).desc||'';
+    const mm=d.match(/every 5 (Strength|Dexterity|Intelligence|Willpower)/i);
+    if(mm) want=mm[1]+'_Core'; }
+  const cnt={legendary:0,rare:0,magic:0,normal:0};
+  for(const [i,key] of m){
+    const n=DATA.nodes[key];
+    if(!key.includes('Gate')&&!key.includes('Socket')) cnt[n.rarity]=(cnt[n.rarity]||0)+1;
+    for(const a of n.attrs){
+      if(want&&a.attribute===want&&a.value&&dia.has(i)) maxr+=a.value;
+      if(!owned.has(i)) continue;
+      const s=STAT[a.attribute]; if(s&&a.value) t[s]+=a.value;
+      if(want&&a.attribute===want&&a.value&&dia.has(i)) inr+=a.value;
+    }
+  }
+  $('pts').textContent=owned.size;
+  $('str').textContent=Math.round(t.str); $('dex').textContent=Math.round(t.dex);
+  $('int').textContent=Math.round(t.int); $('wil').textContent=Math.round(t.wil);
+  $('glystat').textContent=want?want.replace('_Core','')+' in range':'Stat in range';
+  $('inrange').textContent=Math.round(inr);
+  $('blocks').textContent=Math.floor(inr/5);
+  $('maxrange').textContent=Math.round(maxr);
+  $('cells').textContent=m.size;
+  $('nleg').textContent=cnt.legendary||0; $('nrare').textContent=cnt.rare||0;
+  $('nmagic').textContent=cnt.magic||0;
+  $('rot').textContent=`Rotate ${rot*90}°`;
+}
 
-$('board').addEventListener('mousemove', e => {
-  const tip = $('tip');
-  const i = e.target.dataset && e.target.dataset.i;
-  if (i === undefined) { tip.style.display='none'; return; }
-  const key = cells().get(+i);
-  if (!key) { tip.style.display='none'; return; }
-  const n = DATA.nodes[key];
-  const rows = n.attrs.filter(a=>a.attribute)
-    .map(a=>`<li>${a.attribute.replace(/_/g,' ')}${a.value!=null?': <b>'+(+a.value.toFixed(3))+'</b>':''}</li>`)
-    .join('');
-  tip.innerHTML = `<div class="n">${n.name||key}</div><div class="r">${n.rarity}</div>`
-    + (rows?`<ul>${rows}</ul>`:'')
-    + (n.tags && n.tags.length?`<div class="r" style="margin-top:6px">${n.tags.join(', ')}</div>`:'');
+function cellAt(e){
+  const cv=$('cv'), b=cv.getBoundingClientRect();
+  const c=Math.floor((e.clientX-b.left)/b.width*W), r=Math.floor((e.clientY-b.top)/b.height*W);
+  if(r<0||c<0||r>=W||c>=W) return null;
+  const i=r*W+c; return cache.m.has(i)?i:null;
+}
+
+$('cv').addEventListener('mousemove', e=>{
+  const i=cellAt(e), tip=$('tip');
+  if(i!==hover){ hover=i; draw(); }
+  if(i===null){ tip.style.display='none'; return; }
+  const n=DATA.nodes[cache.m.get(i)];
+  const rows=n.attrs.filter(a=>a.attribute).map(a=>
+    `<li>${a.attribute.replace(/_/g,' ')}${a.value!=null?': <b>'+(+a.value.toFixed(3))+'</b>':''}</li>`).join('');
+  tip.innerHTML=`<div class="n">${n.name||cache.m.get(i)}</div><div class="r">${n.rarity}`
+    +(cache.dia.has(i)?' &middot; in glyph radius':'')+`</div>`
+    +(rows?`<ul>${rows}</ul>`:'')
+    +(n.tags&&n.tags.length?`<div class="r" style="margin-top:7px">${n.tags.join(', ')}</div>`:'');
   tip.style.display='block';
-  const pad=14;
-  tip.style.left = Math.min(e.clientX+pad, innerWidth-300)+'px';
-  tip.style.top  = Math.min(e.clientY+pad, innerHeight-140)+'px';
+  tip.style.left=Math.min(e.clientX+16, innerWidth-310)+'px';
+  tip.style.top=Math.min(e.clientY+16, innerHeight-160)+'px';
 });
-$('board').addEventListener('mouseleave', ()=> $('tip').style.display='none');
+$('cv').addEventListener('mouseleave',()=>{hover=null;$('tip').style.display='none';draw();});
+$('cv').addEventListener('click', e=>{
+  const i=cellAt(e); if(i===null) return;
+  owned.has(i)?owned.delete(i):owned.add(i); draw(); totals();
+});
 
-$('brd').onchange = e => { board = +e.target.value; owned.clear(); render(); };
-$('gly').onchange = render;
-$('rot').onclick = () => { rot = (rot+1)%4; owned.clear(); render(); };
-$('clr').onclick = () => { owned.clear(); render(); };
-$('dia').onclick = e => { showDia = !showDia; e.target.classList.toggle('on', showDia); render(); };
-$('cls').onchange = e => loadClass(e.target.value);
+$('brd').onchange=e=>{board=+e.target.value;owned.clear();build();};
+$('gly').onchange=()=>totals();
+$('rot').onclick=()=>{rot=(rot+1)%4;owned.clear();build();};
+$('clr').onclick=()=>{owned.clear();draw();totals();};
+$('dia').onclick=e=>{showDia=!showDia;e.target.classList.toggle('on',showDia);draw();};
+$('cls').onchange=e=>loadClass(e.target.value);
 
-(async () => {
-  const idx = await (await fetch('data/index.json')).json();
-  idx.forEach(c => $('cls').add(new Option(c.class, c.file)));
+(async()=>{
+  const idx=await (await fetch('data/index.json')).json();
+  idx.forEach(c=>$('cls').add(new Option(c.class,c.file)));
   await loadClass(idx[0].file);
 })();
 </script>
