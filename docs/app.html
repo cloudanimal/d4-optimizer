@@ -146,36 +146,39 @@
         <li>The six budget scalars recovered<small>Compiled into the client, not shipped as data. Each confirmed by 42-58 independent formulas</small></li>
         <li>Glyph radius established as Manhattan 5<small>Pixel measurement plus a constant 53-cell coverage signature</small></li>
         <li>Glyph level formula<small>Reproduces all 8 observed in-game values exactly</small></li>
-        <li>Damage bucket table<small>Derived from Blizzard's own attribute naming, not community lore</small></li>
-        <li>Board reader from screenshots<small>4 of 5 boards at 100% match; point total reconstructs to exactly 325</small></li>
-        <li>Solver with board chain costs<small>Crossing a board to attach the next costs 19-27 points</small></li>
-        <li>This browser app</li>
+        <li>Damage bucket table<small>Derived from Blizzard&rsquo;s own attribute naming, not community lore</small></li>
+        <li>Damage model<small>Buckets, nine legendary node effects, glyph conditions and uptimes</small></li>
+        <li>Board attachment chain modelled<small>Crossing a board to attach the next costs 19-27 points in forced pathing</small></li>
+        <li><b>Build generator working</b><small>Searches board choice, rotation, entry and exit gates, glyph assignment and node allocation together, and returns a complete legal build</small></li>
+        <li>This browser app<small>All 79 boards, resolved values on hover, glyph radius overlay</small></li>
       </ul>
     </div>
 
     <div class="card now">
-      <h3>Blocking</h3>
-      <div class="tagline">stops the numbers being trustworthy</div>
+      <h3>Open question</h3>
+      <div class="tagline">the result worth checking</div>
       <ul>
-        <li>Robust purchased-node detection
-          <small>Ring detection currently rides on the occupancy threshold: changing an
-          unrelated setting moved one board from 52 to 43 points. Fix is to detect the red
-          ring as an annulus around each node centre, independent of occupancy.</small></li>
-        <li>Additive-damage baseline
-          <small>The stats panel exposes crit, vulnerable and attack speed totals but no
-          single additive figure, so that bucket starts at zero and inflates anything
-          landing in it. Computable from the verified boards once detection is stable.</small></li>
+        <li>4 boards beat 5, and that disagrees with the meta
+          <small>At 325 points the generator prefers four boards, because the fifth
+          board&rsquo;s attachment cost outweighs what it adds. Community Whirlwind builds
+          run five. Either a real finding or a modelling error, and the way to tell is
+          to score a published five-board build with the same objective.</small></li>
+        <li>Uptime assumptions are estimates
+          <small>How often a build is Berserking or Fortified changes which bonuses win.
+          Kept in a visible table rather than buried, but they are judgement calls.</small></li>
+        <li>Node growth is greedy, not proven optimal
+          <small>Takes the best marginal node each step. Strong in practice, no guarantee.</small></li>
       </ul>
     </div>
 
     <div class="card next">
       <h3>Next</h3>
-      <div class="tagline">once the blockers clear</div>
+      <div class="tagline">in order</div>
       <ul>
-        <li>Run the solver for real<small>Answer whether a given 5 boards are the best 5, at what rotations, with which glyphs</small></li>
-        <li>Gear comparison<small>Screenshot a drop, get "upgrade or not, and by how much". Uses the same damage model</small></li>
-        <li>Solver in the browser<small>Port the greedy-plus-knapsack search so the app optimizes, not just displays</small></li>
-        <li>Build import/export<small>Shareable URLs, and reading a build back from a planner link</small></li>
+        <li>Score a published build against the generator<small>Settles the 4-versus-5 question directly</small></li>
+        <li>Solver in the browser<small>Port the search so this page generates builds, not just displays them</small></li>
+        <li>Gear comparison<small>Enter or screenshot an item, get &ldquo;upgrade or not, and by how much&rdquo;. Same damage model</small></li>
+        <li>Build export<small>Shareable URLs, and export in a form a planner can read</small></li>
       </ul>
     </div>
 
@@ -184,9 +187,21 @@
       <div class="tagline">data is done, modelling is not</div>
       <ul>
         <li>Skill damage wiring<small>39 power tables are in hand, but nothing yet maps each skill to its table and coefficient</small></li>
-        <li>Rotation and uptime model<small>How often Berserking, Fortified or a given shout is live. Build-specific judgement calls, kept visible rather than buried</small></li>
+        <li>Rotation model<small>Which skills fire how often, which drives every conditional bonus</small></li>
         <li>Breakpoints<small>Resource costs, cooldown thresholds, attack speed interactions</small></li>
-        <li>Staged search<small>Skills x gear x aspects x tempering x paragon is far too large to search globally; it has to be optimized in stages</small></li>
+        <li>Staged search<small>Skills &times; gear &times; aspects &times; tempering &times; paragon is far too large to search globally; it has to be optimized in stages</small></li>
+      </ul>
+    </div>
+
+    <div class="card done" style="border-top-color:#4a4038">
+      <h3>Dropped from scope</h3>
+      <div class="tagline">no longer needed</div>
+      <ul>
+        <li>Reading an existing build off screenshots
+          <small>The goal is generating optimal builds, not reconstructing a current one.
+          This removed the fragile purchased-node detection entirely, and reshaped the
+          damage baseline to gear-only, which the extracted gear already supplies.
+          The reader code remains in the repo but is off the critical path.</small></li>
       </ul>
     </div>
   </div>
@@ -206,8 +221,10 @@
         <tr><td>Glyph level formula</td><td>All 8 observed values reproduce exactly</td><td><span class="pill ok">verified</span></td></tr>
         <tr><td>Damage buckets</td><td>Blizzard's own attribute naming</td><td><span class="pill ok">verified</span></td></tr>
         <tr><td>Board reading</td><td>Occupancy matched a known 441-cell layout at 100%</td><td><span class="pill ok">verified</span></td></tr>
-        <tr><td>Purchased-node reading</td><td>Threshold-sensitive; moved 52 &rarr; 43 on a config change</td><td><span class="pill warn">fragile</span></td></tr>
+        <tr><td>Purchased-node reading</td><td>Was threshold-sensitive; dropped from scope, generator does not need it</td><td><span class="pill">dropped</span></td></tr>
         <tr><td>Uptime assumptions</td><td>Judgement calls, exposed in a visible table</td><td><span class="pill warn">modelled</span></td></tr>
+        <tr><td>Damage baseline</td><td>Gear-only, derived from extracted item affixes</td><td><span class="pill ok">verified</span></td></tr>
+        <tr><td>Node growth</td><td>Greedy marginal selection, not proven optimal</td><td><span class="pill warn">heuristic</span></td></tr>
       </table>
     </div>
 
