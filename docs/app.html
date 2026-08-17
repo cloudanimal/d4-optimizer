@@ -1,0 +1,259 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>D4 Optimizer — Paragon Board Explorer</title>
+<style>
+  :root{
+    --bg:#0c0a08; --panel:#15110d; --panel2:#1c1712; --edge:#3a2f22;
+    --gold:#c8a35a; --dim:#9a8f7d; --text:#e8dfce;
+    --normal:#6b6257; --magic:#5a7fb5; --rare:#b8a24a; --legend:#c8843c;
+    --gate:#a8443c; --socket:#c8843c; --owned:#e04a3a;
+  }
+  *{box-sizing:border-box}
+  body{margin:0;background:var(--bg);color:var(--text);
+    font:14px/1.5 -apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,sans-serif;padding:16px}
+  h1{margin:0 0 4px;font-size:22px;letter-spacing:.14em;text-transform:uppercase;color:var(--gold);
+     font-family:"Iowan Old Style",Georgia,serif}
+  .sub{color:var(--dim);font-size:12px;margin-bottom:16px}
+  .layout{display:grid;grid-template-columns:minmax(0,1fr) 320px;gap:18px;align-items:start}
+  @media(max-width:900px){.layout{grid-template-columns:1fr}}
+  .panel{background:var(--panel);border:1px solid var(--edge);border-radius:5px;padding:14px}
+  .controls{display:flex;gap:10px;flex-wrap:wrap;margin-bottom:14px;align-items:center}
+  select,button{background:var(--panel2);color:var(--text);border:1px solid var(--edge);
+    border-radius:4px;padding:7px 10px;font:inherit;font-size:13px;cursor:pointer}
+  button:hover,select:hover{border-color:var(--gold)}
+  button.on{background:var(--gold);color:#1a1409;border-color:var(--gold);font-weight:600}
+  #board{display:grid;gap:1px;background:#0a0806;padding:6px;border-radius:4px;
+    border:1px solid var(--edge);width:100%;aspect-ratio:1/1}
+  .cell{border-radius:2px;position:relative;cursor:pointer;transition:none}
+  .cell.empty{background:transparent;cursor:default}
+  .cell.normal{background:#2a2620}.cell.magic{background:#243447}
+  .cell.rare{background:#3d3418}.cell.legendary{background:#4a2f16}
+  .cell.gate{background:#4a1f1c;border-radius:50%}
+  .cell.socket{background:#5a3a14;border-radius:50%}
+  .cell.inrange{outline:1px solid rgba(224,74,58,.30);outline-offset:-1px}
+  .cell.owned{box-shadow:inset 0 0 0 2px var(--owned)}
+  .cell:hover{filter:brightness(1.7)}
+  .stat{display:flex;justify-content:space-between;padding:4px 0;border-bottom:1px solid var(--edge);font-size:13px}
+  .stat b{color:var(--gold);font-variant-numeric:tabular-nums}
+  .k{font-size:10.5px;letter-spacing:.14em;text-transform:uppercase;color:var(--dim);margin:14px 0 6px}
+  #tip{position:fixed;pointer-events:none;background:#000;border:1px solid var(--gold);
+    border-radius:4px;padding:9px 11px;font-size:12.5px;max-width:290px;display:none;z-index:9;
+    box-shadow:0 4px 18px rgba(0,0,0,.7)}
+  #tip .n{color:var(--gold);font-weight:600;margin-bottom:3px}
+  #tip .r{color:var(--dim);font-size:11px;text-transform:uppercase;letter-spacing:.08em}
+  #tip ul{margin:6px 0 0;padding-left:15px}
+  .legend{display:flex;gap:12px;flex-wrap:wrap;font-size:11.5px;color:var(--dim);margin-top:10px}
+  .swatch{display:inline-block;width:10px;height:10px;border-radius:2px;margin-right:4px;vertical-align:-1px}
+  .hint{color:var(--dim);font-size:12px;margin-top:10px;line-height:1.5}
+  a{color:var(--gold)}
+</style>
+</head>
+<body>
+
+<h1>Paragon Board Explorer</h1>
+<div class="sub">All 79 boards across 8 classes, with resolved node values.
+  Click nodes to allocate. <a href="./">About this project</a></div>
+
+<div class="controls">
+  <select id="cls"></select>
+  <select id="brd"></select>
+  <select id="gly"></select>
+  <button id="rot">Rotate 0&deg;</button>
+  <button id="clr">Clear</button>
+  <button id="dia" class="on">Glyph radius</button>
+</div>
+
+<div class="layout">
+  <div class="panel">
+    <div id="board"></div>
+    <div class="legend">
+      <span><i class="swatch" style="background:#2a2620"></i>normal</span>
+      <span><i class="swatch" style="background:#243447"></i>magic</span>
+      <span><i class="swatch" style="background:#3d3418"></i>rare</span>
+      <span><i class="swatch" style="background:#4a2f16"></i>legendary</span>
+      <span><i class="swatch" style="background:#4a1f1c;border-radius:50%"></i>gate</span>
+      <span><i class="swatch" style="background:#5a3a14;border-radius:50%"></i>glyph socket</span>
+      <span><i class="swatch" style="box-shadow:inset 0 0 0 2px var(--owned)"></i>allocated</span>
+    </div>
+  </div>
+
+  <div>
+    <div class="panel">
+      <div class="k" style="margin-top:0">Allocation</div>
+      <div class="stat"><span>Points spent</span><b id="pts">0</b></div>
+      <div class="stat"><span>Strength</span><b id="str">0</b></div>
+      <div class="stat"><span>Dexterity</span><b id="dex">0</b></div>
+      <div class="stat"><span>Intelligence</span><b id="int">0</b></div>
+      <div class="stat"><span>Willpower</span><b id="wil">0</b></div>
+
+      <div class="k">In glyph radius</div>
+      <div class="stat"><span id="glystat">Stat in range</span><b id="inrange">0</b></div>
+      <div class="stat"><span>Blocks of 5</span><b id="blocks">0</b></div>
+
+      <div class="k">Board</div>
+      <div class="stat"><span>Cells</span><b id="cells">0</b></div>
+      <div class="stat"><span>Legendary</span><b id="nleg">0</b></div>
+      <div class="stat"><span>Rare</span><b id="nrare">0</b></div>
+      <div class="stat"><span>Magic</span><b id="nmagic">0</b></div>
+      <div class="hint">A glyph counts its stat only from nodes purchased
+        inside a Manhattan-distance-5 diamond around its socket. That is why
+        placement matters more than raw node value.</div>
+    </div>
+  </div>
+</div>
+
+<div id="tip"></div>
+
+<script>
+const W = 21;
+const STAT = {Strength_Core:'str', Dexterity_Core:'dex',
+              Intelligence_Core:'int', Willpower_Core:'wil'};
+let DATA = null, board = null, rot = 0, owned = new Set(), showDia = true;
+
+const $ = id => document.getElementById(id);
+const rotate = (r, c, k) => { for (let i=0;i<k;i++) { const t=r; r=c; c=W-1-t; } return [r,c]; };
+
+async function loadClass(file) {
+  DATA = await (await fetch('data/' + file)).json();
+  const b = $('brd'); b.innerHTML = '';
+  DATA.boards.forEach((bd,i) => b.add(new Option(bd.name, i)));
+  const g = $('gly'); g.innerHTML = '';
+  g.add(new Option('— no glyph —',''));
+  Object.entries(DATA.glyphs)
+    .sort((a,b)=> (a[1].name||'').localeCompare(b[1].name||''))
+    .forEach(([k,v]) => v.name && g.add(new Option(v.name, k)));
+  board = 0; rot = 0; owned.clear();
+  render();
+}
+
+function cells() {
+  const bd = DATA.boards[board], out = new Map();
+  for (const g of bd.grid) {
+    const [r,c] = rotate(g.row, g.col, rot);
+    out.set(r*W+c, g.node);
+  }
+  return out;
+}
+
+function socketOf(m) {
+  for (const [i,n] of m) if (n.includes('Socket')) return i;
+  return null;
+}
+
+function render() {
+  const m = cells(), sock = socketOf(m);
+  const el = $('board');
+  el.style.gridTemplateColumns = `repeat(${W},1fr)`;
+  el.innerHTML = '';
+  const dia = new Set();
+  if (sock !== null && showDia) {
+    const sr = Math.floor(sock/W), sc = sock%W;
+    for (const i of m.keys()) {
+      const r = Math.floor(i/W), c = i%W;
+      if (Math.abs(r-sr)+Math.abs(c-sc) <= 5) dia.add(i);
+    }
+  }
+  const count = {legendary:0, rare:0, magic:0, normal:0};
+  for (let i=0;i<W*W;i++) {
+    const d = document.createElement('div');
+    d.className = 'cell';
+    const key = m.get(i);
+    if (!key) { d.classList.add('empty'); el.appendChild(d); continue; }
+    const n = DATA.nodes[key];
+    let kind = n.rarity;
+    if (key.includes('Gate')) kind = 'gate';
+    else if (key.includes('Socket')) kind = 'socket';
+    else count[n.rarity] = (count[n.rarity]||0)+1;
+    d.classList.add(kind);
+    if (dia.has(i)) d.classList.add('inrange');
+    if (owned.has(i)) d.classList.add('owned');
+    d.dataset.i = i;
+    el.appendChild(d);
+  }
+  $('cells').textContent = m.size;
+  $('nleg').textContent = count.legendary||0;
+  $('nrare').textContent = count.rare||0;
+  $('nmagic').textContent = count.magic||0;
+  $('rot').textContent = `Rotate ${rot*90}°`;
+  totals(m, sock);
+}
+
+function totals(m, sock) {
+  const t = {str:0,dex:0,int:0,wil:0};
+  let inrange = 0;
+  const gk = $('gly').value;
+  const g = gk ? DATA.glyphs[gk] : null;
+  let want = null;
+  if (g) {
+    const d = (g.affixes.find(a => /purchased within range/i.test(a.desc||''))||{}).desc || '';
+    const mm = d.match(/every 5 (Strength|Dexterity|Intelligence|Willpower)/i);
+    if (mm) want = mm[1] + '_Core';
+  }
+  const sr = sock===null?0:Math.floor(sock/W), sc = sock===null?0:sock%W;
+  for (const i of owned) {
+    const key = m.get(i); if (!key) continue;
+    for (const a of DATA.nodes[key].attrs) {
+      const s = STAT[a.attribute];
+      if (s && a.value) t[s] += a.value;
+      if (want && a.attribute === want && a.value && sock!==null) {
+        const r = Math.floor(i/W), c = i%W;
+        if (Math.abs(r-sr)+Math.abs(c-sc) <= 5) inrange += a.value;
+      }
+    }
+  }
+  $('pts').textContent = owned.size;
+  $('str').textContent = Math.round(t.str);
+  $('dex').textContent = Math.round(t.dex);
+  $('int').textContent = Math.round(t.int);
+  $('wil').textContent = Math.round(t.wil);
+  $('glystat').textContent = want ? want.replace('_Core','') + ' in range' : 'Stat in range';
+  $('inrange').textContent = Math.round(inrange);
+  $('blocks').textContent = Math.floor(inrange/5);
+}
+
+$('board').addEventListener('click', e => {
+  const i = e.target.dataset && e.target.dataset.i;
+  if (i === undefined) return;
+  const k = +i;
+  owned.has(k) ? owned.delete(k) : owned.add(k);
+  render();
+});
+
+$('board').addEventListener('mousemove', e => {
+  const tip = $('tip');
+  const i = e.target.dataset && e.target.dataset.i;
+  if (i === undefined) { tip.style.display='none'; return; }
+  const key = cells().get(+i);
+  if (!key) { tip.style.display='none'; return; }
+  const n = DATA.nodes[key];
+  const rows = n.attrs.filter(a=>a.attribute)
+    .map(a=>`<li>${a.attribute.replace(/_/g,' ')}${a.value!=null?': <b>'+(+a.value.toFixed(3))+'</b>':''}</li>`)
+    .join('');
+  tip.innerHTML = `<div class="n">${n.name||key}</div><div class="r">${n.rarity}</div>`
+    + (rows?`<ul>${rows}</ul>`:'')
+    + (n.tags && n.tags.length?`<div class="r" style="margin-top:6px">${n.tags.join(', ')}</div>`:'');
+  tip.style.display='block';
+  const pad=14;
+  tip.style.left = Math.min(e.clientX+pad, innerWidth-300)+'px';
+  tip.style.top  = Math.min(e.clientY+pad, innerHeight-140)+'px';
+});
+$('board').addEventListener('mouseleave', ()=> $('tip').style.display='none');
+
+$('brd').onchange = e => { board = +e.target.value; owned.clear(); render(); };
+$('gly').onchange = render;
+$('rot').onclick = () => { rot = (rot+1)%4; owned.clear(); render(); };
+$('clr').onclick = () => { owned.clear(); render(); };
+$('dia').onclick = e => { showDia = !showDia; e.target.classList.toggle('on', showDia); render(); };
+$('cls').onchange = e => loadClass(e.target.value);
+
+(async () => {
+  const idx = await (await fetch('data/index.json')).json();
+  idx.forEach(c => $('cls').add(new Option(c.class, c.file)));
+  await loadClass(idx[0].file);
+})();
+</script>
+</body>
+</html>

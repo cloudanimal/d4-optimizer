@@ -1,0 +1,58 @@
+[
+ {
+  "class": "Barbarian",
+  "file": "barbarian.json",
+  "kb": 117,
+  "boards": 10,
+  "glyphs": 23
+ },
+ {
+  "class": "Druid",
+  "file": "druid.json",
+  "kb": 118,
+  "boards": 10,
+  "glyphs": 23
+ },
+ {
+  "class": "Necromancer",
+  "file": "necromancer.json",
+  "kb": 118,
+  "boards": 10,
+  "glyphs": 23
+ },
+ {
+  "class": "Rogue",
+  "file": "rogue.json",
+  "kb": 118,
+  "boards": 10,
+  "glyphs": 26
+ },
+ {
+  "class": "Sorcerer",
+  "file": "sorcerer.json",
+  "kb": 116,
+  "boards": 10,
+  "glyphs": 23
+ },
+ {
+  "class": "Spiritborn",
+  "file": "spiritborn.json",
+  "kb": 104,
+  "boards": 9,
+  "glyphs": 22
+ },
+ {
+  "class": "Paladin",
+  "file": "paladin.json",
+  "kb": 112,
+  "boards": 10,
+  "glyphs": 21
+ },
+ {
+  "class": "Warlock",
+  "file": "warlock.json",
+  "kb": 115,
+  "boards": 10,
+  "glyphs": 21
+ }
+]
