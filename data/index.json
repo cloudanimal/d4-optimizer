@@ -6,7 +6,7 @@
   {
    "class": "Sorcerer",
    "file": "sorcerer.json",
-   "kb": 1112,
+   "kb": 1163,
    "boards": 10,
    "glyphs": 23,
    "skills": 118,
@@ -19,7 +19,7 @@
   {
    "class": "Druid",
    "file": "druid.json",
-   "kb": 1163,
+   "kb": 1217,
    "boards": 10,
    "glyphs": 23,
    "skills": 117,
@@ -32,7 +32,7 @@
   {
    "class": "Barbarian",
    "file": "barbarian.json",
-   "kb": 1158,
+   "kb": 1205,
    "boards": 10,
    "glyphs": 23,
    "skills": 107,
@@ -45,7 +45,7 @@
   {
    "class": "Rogue",
    "file": "rogue.json",
-   "kb": 1172,
+   "kb": 1221,
    "boards": 10,
    "glyphs": 26,
    "skills": 103,
@@ -58,7 +58,7 @@
   {
    "class": "Necromancer",
    "file": "necromancer.json",
-   "kb": 1164,
+   "kb": 1217,
    "boards": 10,
    "glyphs": 23,
    "skills": 143,
@@ -71,7 +71,7 @@
   {
    "class": "Spiritborn",
    "file": "spiritborn.json",
-   "kb": 1063,
+   "kb": 1112,
    "boards": 9,
    "glyphs": 22,
    "skills": 131,
@@ -84,7 +84,7 @@
   {
    "class": "Paladin",
    "file": "paladin.json",
-   "kb": 1048,
+   "kb": 1093,
    "boards": 10,
    "glyphs": 21,
    "skills": 113,
@@ -97,7 +97,7 @@
   {
    "class": "Warlock",
    "file": "warlock.json",
-   "kb": 978,
+   "kb": 1027,
    "boards": 10,
    "glyphs": 21,
    "skills": 116,

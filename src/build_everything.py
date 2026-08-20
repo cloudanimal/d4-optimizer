@@ -132,10 +132,19 @@ for ci, c in sorted(mx['classes'].items(), key=lambda kv: int(kv[0])):
         'nodes': {g['node']: nodes[g['node']] for b in boards for g in b['grid']},
         'glyphs': {k: v for k, v in glyphs.items() if legal(v, i)},
         'thresholds': {k: v for k, v in mx['paragonThresholds'].items() if legal(v, i)},
+        # payloads carry the actual damage formulas, e.g.
+        #   "1.65*Table(34,sLevel)/(1/(0.4333/Attacks_Per_Second_Total))"
+        # which is the coefficient and the power-table link a damage model needs.
+        # cost and mods matter too: resource cost gates rotation, mods are the
+        # skill upgrades that change what a skill actually does.
         'skills': {k: {'name': v.get('name'), 'desc': clean(v.get('desc')),
                        'type': v.get('type'), 'category': v.get('category'),
                        'damageType': v.get('damageType'), 'tags': v.get('tags', []),
-                       'primaryTag': v.get('primaryTag'), 'rankup': clean(v.get('rankup'))}
+                       'primaryTag': v.get('primaryTag'), 'rankup': clean(v.get('rankup')),
+                       'payloads': v.get('payloads', []), 'cost': v.get('cost', []),
+                       'mods': [{'name': m.get('name'), 'desc': clean(m.get('desc'))}
+                                for m in (v.get('mods') or []) if isinstance(m, dict)],
+                       'combatEffectChance': v.get('combatEffectChance')}
                    for k, v in mx['skills'].items()
                    if k in skill_keys or k.startswith(cname + '_')},
         'skillTree': mx['skillTrees'].get(TREE_ALIAS.get(cname, cname)),

@@ -151,6 +151,7 @@
         <li>Board attachment chain modelled<small>Crossing a board to attach the next costs 19-27 points in forced pathing</small></li>
         <li><b>Build generator working</b><small>Searches board choice, rotation, entry and exit gates, glyph assignment and node allocation together, and returns a complete legal build</small></li>
         <li>This browser app<small>All 79 boards, resolved values on hover, glyph radius overlay</small></li>
+        <li>Skill damage formulas recovered<small>269 damage-dealing skills wired to their power tables, plus resource costs and the mods that change what each skill does</small></li>
         <li>Board renderer redesigned<small>Forged-plate treatment with the board&rsquo;s topology visible before any clicks. Rarity carried by shape and size, not hue alone, so it survives colour blindness and greyscale. HiDPI backing store, level-of-detail below 22px per cell, and a self-drawing legend that cannot drift from the renderer</small></li>
       </ul>
     </div>
@@ -187,7 +188,7 @@
       <h3>Needed for a full build optimizer</h3>
       <div class="tagline">data is done, modelling is not</div>
       <ul>
-        <li>Skill damage wiring<small>39 power tables are in hand, but nothing yet maps each skill to its table and coefficient</small></li>
+        <li><b>Skill damage: solved</b><small>269 skills across the 8 classes carry a damage formula referencing a power table, e.g. Whirlwind is 1.65 &times; Table(34, skillLevel). This was previously listed as missing; the mapping was in the data all along, in a payloads field that had been trimmed out. Now retained, along with resource costs and skill mods</small></li>
         <li>Rotation model<small>Which skills fire how often, which drives every conditional bonus</small></li>
         <li>Breakpoints<small>Resource costs, cooldown thresholds, attack speed interactions</small></li>
         <li>Staged search<small>Skills &times; gear &times; aspects &times; tempering &times; paragon is far too large to search globally; it has to be optimized in stages</small></li>
